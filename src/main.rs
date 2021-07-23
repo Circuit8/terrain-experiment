@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use bevy_flycam::PlayerPlugin;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
-    Perlin,
+    Perlin, Seedable,
 };
+use rand::Rng;
 
 const MAP_WIDTH: usize = 32;
 const MAP_HEIGHT: f64 = 10.0;
@@ -24,17 +25,17 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // cubes
     let perlin = Perlin::new();
+    perlin.set_seed(rand::thread_rng().gen_range(0..u32::MAX));
     let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
     let noise_map = builder.build();
-
     for z in (0..MAP_WIDTH as usize).into_iter() {
         for x in (0..MAP_WIDTH as usize).into_iter() {
             let noise_value = noise_map.get_value(x, z);
             let height = (noise_value * 10.0).floor() as i64 + 1;
-            print!("{} ", height);
 
-            for y in (-5..height).into_iter() {
+            for y in (-6..height).into_iter() {
                 let color = match height {
                     -5 => Color::rgb(0.3, 0.3, 0.3),
                     -4..=0 => Color::rgb(0.2, 0.2, 0.8),
@@ -49,11 +50,46 @@ fn setup(
                 });
             }
         }
-        println!("");
     }
+
+    // water surface
+    let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane {
+            size: MAP_WIDTH as f32,
+        })),
+        material: materials.add(Color::rgba(0.1, 0.1, 0.95, 0.5).into()),
+        transform: Transform::from_xyz(
+            horizontal_plane_transform,
+            -0.5,
+            horizontal_plane_transform,
+        ),
+        ..Default::default()
+    });
+
+    // Floor
+    let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Plane {
+            size: MAP_WIDTH as f32,
+        })),
+        material: materials.add(Color::rgba(0.1, 0.1, 0.1, 1.0).into()),
+        transform: Transform::from_xyz(
+            horizontal_plane_transform,
+            -5.5,
+            horizontal_plane_transform,
+        ),
+        ..Default::default()
+    });
 
     // light
     commands.spawn_bundle(LightBundle {
+        light: Light {
+            color: Color::rgb(1.0, 0.3, 0.9),
+            intensity: 1000.0,
+            fov: f32::to_radians(360.0),
+            ..Default::default()
+        },
         transform: Transform::from_xyz(4.0, SUN_HEIGHT as f32, 4.0),
         ..Default::default()
     });
