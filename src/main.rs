@@ -1,5 +1,11 @@
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    render::{
+        mesh::{Indices, Mesh, VertexAttributeValues},
+        pipeline::PrimitiveTopology,
+    },
+};
 use bevy_flycam::PlayerPlugin;
 use bevy_frustum_culling::*;
 use color_eyre::Report;
@@ -42,49 +48,78 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
+    mut shaders: ResMut<Assets<Shader>>,
+    mut render_graph: ResMut<RenderGraph>,
 ) {
-    // cubes
-    let perlin = Perlin::new();
-    let seed = rand::thread_rng().gen_range(0..u32::MAX);
-    perlin.set_seed(seed);
-    let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
-    let noise_map = builder.build();
-    for z in (0..MAP_WIDTH as usize).into_iter() {
-        for x in (0..MAP_WIDTH as usize).into_iter() {
-            let noise_value = noise_map.get_value(x, z);
-            let height = (noise_value * 10.0).floor() as i64 + 1;
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
-            for y in (-6..height).into_iter() {
-                let color = match height {
-                    -5 => Color::rgb(0.3, 0.3, 0.3),
-                    -4..=0 => Color::rgb(0.2, 0.2, 0.8),
-                    _ => Color::rgb(0.2, 0.8, 0.2),
-                };
+    let mut vertices = vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]];
+    let mut normals: Vec<[f32; 3]> = Vec::new();
 
-                commands.spawn_bundle(PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                    material: materials.add(color.into()),
-                    transform: Transform::from_xyz(x as f32, y as f32, z as f32),
-                    ..Default::default()
-                });
-            }
-        }
-    }
+    let pipeline_handle = add_terrain_material(pipelines, shaders, render_graph);
 
-    // water surface
-    let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane {
-            size: MAP_WIDTH as f32,
-        })),
-        material: materials.add(Color::rgba(0.1, 0.1, 0.95, 0.5).into()),
-        transform: Transform::from_xyz(
-            horizontal_plane_transform,
-            -0.5,
-            horizontal_plane_transform,
-        ),
+    normals.resize(3, [0.0f32, 1.0f32, 0.0f32]);
+    let uvs = vec![[0.0, 0.0, 0.0]; vertices.len()];
+
+    mesh.set_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        VertexAttributeValues::Float3(vertices),
+    );
+    // mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float3(uvs));
+    mesh.set_attribute(
+        Mesh::ATTRIBUTE_NORMAL,
+        VertexAttributeValues::Float3(normals),
+    );
+
+    commands.spawn_bundle(MeshBundle {
+        mesh: meshes.add(mesh),
+        transform: Transform::from_xyz(0.0 as f32, 0.0 as f32, 0.0 as f32),
         ..Default::default()
     });
+
+    // // cubes
+    // let perlin = Perlin::new();
+    // let seed = rand::thread_rng().gen_range(0..u32::MAX);
+    // perlin.set_seed(seed);
+    // let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
+    // let noise_map = builder.build();
+    // for z in (0..MAP_WIDTH as usize).into_iter() {
+    //     for x in (0..MAP_WIDTH as usize).into_iter() {
+    //         let noise_value = noise_map.get_value(x, z);
+    //         let height = (noise_value * 10.0).floor() as i64 + 1;
+
+    //         for y in (-6..height).into_iter() {
+    //             let color = match height {
+    //                 -5 => Color::rgb(0.3, 0.3, 0.3),
+    //                 -4..=0 => Color::rgb(0.2, 0.2, 0.8),
+    //                 _ => Color::rgb(0.2, 0.8, 0.2),
+    //             };
+
+    //             commands.spawn_bundle(PbrBundle {
+    // mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+    //                 material: materials.add(color.into()),
+    //                 transform: Transform::from_xyz(x as f32, y as f32, z as f32),
+    //                 ..Default::default()
+    //             });
+    //         }
+    //     }
+    // }
+
+    // water surface
+    // let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
+    // commands.spawn_bundle(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Plane {
+    //         size: MAP_WIDTH as f32,
+    //     })),
+    //     material: materials.add(Color::rgba(0.1, 0.1, 0.95, 0.5).into()),
+    //     transform: Transform::from_xyz(
+    //         horizontal_plane_transform,
+    //         -0.5,
+    //         horizontal_plane_transform,
+    //     ),
+    //     ..Default::default()
+    // });
 
     // Floor
     let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
