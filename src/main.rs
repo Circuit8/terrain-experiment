@@ -2,17 +2,20 @@ use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_flycam::PlayerPlugin;
 use bevy_frustum_culling::*;
+use color_eyre::Report;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
     Perlin, Seedable,
 };
 use rand::Rng;
 
-const MAP_WIDTH: usize = 8;
+const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: f64 = 10.0;
 const SUN_HEIGHT: f64 = MAP_HEIGHT + 5.0;
 
-fn main() {
+fn main() -> Result<(), Report> {
+    init()?;
+
     App::build()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
@@ -23,9 +26,18 @@ fn main() {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_startup_system(setup.system())
         .run();
+    Ok(())
 }
 
-/// set up a simple 3D scene
+fn init() -> Result<(), Report> {
+    if std::env::var("RUST_LIB_BACKTRACE").is_err() {
+        std::env::set_var("RUST_LIB_BACKTRACE", "1")
+    }
+    color_eyre::install()?;
+
+    Ok(())
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -33,7 +45,8 @@ fn setup(
 ) {
     // cubes
     let perlin = Perlin::new();
-    perlin.set_seed(rand::thread_rng().gen_range(0..u32::MAX));
+    let seed = rand::thread_rng().gen_range(0..u32::MAX);
+    perlin.set_seed(seed);
     let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
     let noise_map = builder.build();
     for z in (0..MAP_WIDTH as usize).into_iter() {
