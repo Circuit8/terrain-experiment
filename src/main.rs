@@ -1,12 +1,14 @@
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_flycam::PlayerPlugin;
+use bevy_frustum_culling::*;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
     Perlin, Seedable,
 };
 use rand::Rng;
 
-const MAP_WIDTH: usize = 32;
+const MAP_WIDTH: usize = 8;
 const MAP_HEIGHT: f64 = 10.0;
 const SUN_HEIGHT: f64 = MAP_HEIGHT + 5.0;
 
@@ -14,7 +16,11 @@ fn main() {
     App::build()
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
+        .add_plugin(BoundingVolumePlugin::<obb::Obb>::default())
+        .add_plugin(FrustumCullingPlugin::<obb::Obb>::default())
         .add_plugin(PlayerPlugin)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(LogDiagnosticsPlugin::default())
         .add_startup_system(setup.system())
         .run();
 }
@@ -94,8 +100,10 @@ fn setup(
         ..Default::default()
     });
     // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
-    });
+    commands
+        .spawn_bundle(PerspectiveCameraBundle {
+            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..Default::default()
+        })
+        .insert(FrustumCulling);
 }

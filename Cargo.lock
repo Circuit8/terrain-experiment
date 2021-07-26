@@ -367,6 +367,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_frustum_culling"
+version = "0.1.0"
+source = "git+https://github.com/aevyrie/bevy_frustum_culling#fc7134b77d1290489c81a28d1ef530fb64df0e23"
+dependencies = [
+ "bevy",
+ "bevy_mod_bounding",
+]
+
+[[package]]
 name = "bevy_gilrs"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -470,6 +479,15 @@ checksum = "bb36a879cdc96f554b62dd7c7c02392a9a10e94082e4bc686a8242e1d674e7cc"
 dependencies = [
  "bevy_reflect",
  "glam 0.13.1",
+]
+
+[[package]]
+name = "bevy_mod_bounding"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "500131fec86cd66057089520b6bfbdc1f7eaa80c4710ed627ce0f542819ddb24"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
@@ -1931,6 +1949,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_flycam",
+ "bevy_frustum_culling",
  "noise",
  "rand 0.8.3",
 ]
