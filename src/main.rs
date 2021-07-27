@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     render::{
-        mesh::{Indices, Mesh, VertexAttributeValues},
+        mesh::{Mesh, VertexAttributeValues},
         pipeline::PrimitiveTopology,
     },
 };
@@ -15,7 +15,7 @@ use noise::{
 };
 use rand::Rng;
 
-const MAP_WIDTH: usize = 24;
+const MAP_WIDTH: usize = 128;
 const MAP_HEIGHT: f64 = 10.0;
 const SUN_HEIGHT: f64 = MAP_HEIGHT + 5.0;
 
@@ -48,89 +48,80 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
-    mut shaders: ResMut<Assets<Shader>>,
-    mut render_graph: ResMut<RenderGraph>,
 ) {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut vertices: Vec<[f32; 3]> = vec![];
 
-    let mut vertices = vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]];
-    let mut normals: Vec<[f32; 3]> = Vec::new();
+    let perlin = Perlin::new();
+    let seed = rand::thread_rng().gen_range(0..u32::MAX);
+    perlin.set_seed(seed);
+    let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
+    let noise_map = builder.build();
 
-    let pipeline_handle = add_terrain_material(pipelines, shaders, render_graph);
+    for x in 0..MAP_WIDTH {
+        for z in 0..MAP_WIDTH {
+            let top_left = [
+                x as f32,
+                (noise_map.get_value(x, z) * MAP_HEIGHT) as f32,
+                z as f32,
+            ];
+            let bottom_left = [
+                x as f32,
+                (noise_map.get_value(x, z + 1) * MAP_HEIGHT) as f32,
+                (z + 1) as f32,
+            ];
+            let bottom_right = [
+                (x + 1) as f32,
+                (noise_map.get_value(x + 1, z + 1) * MAP_HEIGHT) as f32,
+                (z + 1) as f32,
+            ];
+            let top_right = [
+                (x + 1) as f32,
+                (noise_map.get_value(x + 1, z) * MAP_HEIGHT) as f32,
+                z as f32,
+            ];
 
-    normals.resize(3, [0.0f32, 1.0f32, 0.0f32]);
+            // Triangle: ◺
+            vertices.push(bottom_right);
+            vertices.push(top_left);
+            vertices.push(bottom_left);
+            // Triangle: ◹
+            vertices.push(top_right);
+            vertices.push(top_left);
+            vertices.push(bottom_right);
+        }
+    }
+
     let uvs = vec![[0.0, 0.0, 0.0]; vertices.len()];
+    // might have to do something different with the normals when we have heights
+    let normals = vec![[0.0f32, 1.0f32, 0.0f32]; vertices.len()];
 
     mesh.set_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::Float3(vertices),
     );
-    // mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float3(uvs));
+    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float3(uvs));
     mesh.set_attribute(
         Mesh::ATTRIBUTE_NORMAL,
         VertexAttributeValues::Float3(normals),
     );
 
-    commands.spawn_bundle(MeshBundle {
+    commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(mesh),
-        transform: Transform::from_xyz(0.0 as f32, 0.0 as f32, 0.0 as f32),
+        material: materials.add(Color::rgb(0.1, 0.9, 0.1).into()),
         ..Default::default()
     });
 
-    // // cubes
-    // let perlin = Perlin::new();
-    // let seed = rand::thread_rng().gen_range(0..u32::MAX);
-    // perlin.set_seed(seed);
-    // let builder = PlaneMapBuilder::new(&perlin).set_size(MAP_WIDTH, MAP_WIDTH);
-    // let noise_map = builder.build();
-    // for z in (0..MAP_WIDTH as usize).into_iter() {
-    //     for x in (0..MAP_WIDTH as usize).into_iter() {
-    //         let noise_value = noise_map.get_value(x, z);
-    //         let height = (noise_value * 10.0).floor() as i64 + 1;
-
-    //         for y in (-6..height).into_iter() {
-    //             let color = match height {
-    //                 -5 => Color::rgb(0.3, 0.3, 0.3),
-    //                 -4..=0 => Color::rgb(0.2, 0.2, 0.8),
-    //                 _ => Color::rgb(0.2, 0.8, 0.2),
-    //             };
-
-    //             commands.spawn_bundle(PbrBundle {
-    // mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-    //                 material: materials.add(color.into()),
-    //                 transform: Transform::from_xyz(x as f32, y as f32, z as f32),
-    //                 ..Default::default()
-    //             });
-    //         }
-    //     }
-    // }
-
     // water surface
-    // let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
-    // commands.spawn_bundle(PbrBundle {
-    //     mesh: meshes.add(Mesh::from(shape::Plane {
-    //         size: MAP_WIDTH as f32,
-    //     })),
-    //     material: materials.add(Color::rgba(0.1, 0.1, 0.95, 0.5).into()),
-    //     transform: Transform::from_xyz(
-    //         horizontal_plane_transform,
-    //         -0.5,
-    //         horizontal_plane_transform,
-    //     ),
-    //     ..Default::default()
-    // });
-
-    // Floor
     let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane {
             size: MAP_WIDTH as f32,
         })),
-        material: materials.add(Color::rgba(0.1, 0.1, 0.1, 1.0).into()),
+        material: materials.add(Color::rgb(0.1, 0.1, 0.95).into()),
         transform: Transform::from_xyz(
             horizontal_plane_transform,
-            -5.5,
+            -0.5,
             horizontal_plane_transform,
         ),
         ..Default::default()
@@ -140,13 +131,18 @@ fn setup(
     commands.spawn_bundle(LightBundle {
         light: Light {
             color: Color::rgb(1.0, 0.3, 0.9),
-            intensity: 1000.0,
-            fov: f32::to_radians(360.0),
+            intensity: 10000.0,
+            fov: f32::to_radians(300.0),
             ..Default::default()
         },
-        transform: Transform::from_xyz(4.0, SUN_HEIGHT as f32, 4.0),
+        transform: Transform::from_xyz(
+            MAP_WIDTH as f32 / 2.0,
+            SUN_HEIGHT as f32,
+            MAP_WIDTH as f32 / 2.0,
+        ),
         ..Default::default()
     });
+
     // camera
     commands
         .spawn_bundle(PerspectiveCameraBundle {
