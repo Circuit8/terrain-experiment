@@ -132,7 +132,21 @@ fn setup(
         ..Default::default()
     });
 
-    // light
+    // The sun
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Icosphere {
+            radius: 10.0,
+            subdivisions: 10,
+        })),
+        material: materials.add(Color::rgb(1.0, 0.9, 0.1).into()),
+        transform: Transform::from_xyz(
+            MAP_WIDTH as f32 / 2.0,
+            SUN_HEIGHT as f32,
+            MAP_WIDTH as f32 / 2.0,
+        ),
+        ..Default::default()
+    });
+
     commands.spawn_bundle(LightBundle {
         light: Light {
             color: Color::rgb(1.0, 0.9, 0.1),
