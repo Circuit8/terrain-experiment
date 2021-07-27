@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    pbr::AmbientLight,
     render::{
         mesh::{Mesh, VertexAttributeValues},
         pipeline::PrimitiveTopology,
     },
 };
 use bevy_flycam::PlayerPlugin;
-use bevy_frustum_culling::*;
 use color_eyre::Report;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
@@ -15,18 +15,23 @@ use noise::{
 };
 use rand::Rng;
 
-const MAP_WIDTH: usize = 128;
-const MAP_HEIGHT: f64 = 10.0;
-const SUN_HEIGHT: f64 = MAP_HEIGHT + 5.0;
+const MAP_WIDTH: usize = 512;
+const MAP_HEIGHT: f64 = 40.0;
+const SUN_HEIGHT: f64 = MAP_HEIGHT + 50.0;
 
 fn main() -> Result<(), Report> {
     init()?;
 
     App::build()
+        .insert_resource(WindowDescriptor {
+            title: "Josh's World".to_string(),
+            width: 2000.,
+            height: 1200.,
+            vsync: false,
+            ..Default::default()
+        })
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
-        .add_plugin(BoundingVolumePlugin::<obb::Obb>::default())
-        .add_plugin(FrustumCullingPlugin::<obb::Obb>::default())
         .add_plugin(PlayerPlugin)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
@@ -130,9 +135,10 @@ fn setup(
     // light
     commands.spawn_bundle(LightBundle {
         light: Light {
-            color: Color::rgb(1.0, 0.3, 0.9),
-            intensity: 10000.0,
-            fov: f32::to_radians(300.0),
+            color: Color::rgb(1.0, 0.9, 0.1),
+            intensity: 4000.0,
+            fov: f32::to_radians(170.0),
+            range: (MAP_WIDTH as f32).max(SUN_HEIGHT as f32),
             ..Default::default()
         },
         transform: Transform::from_xyz(
@@ -143,11 +149,14 @@ fn setup(
         ..Default::default()
     });
 
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 0.1,
+    });
+
     // camera
-    commands
-        .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
-        })
-        .insert(FrustumCulling);
+    commands.spawn_bundle(PerspectiveCameraBundle {
+        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..Default::default()
+    });
 }
