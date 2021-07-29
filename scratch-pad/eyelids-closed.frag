@@ -12,11 +12,6 @@ void main() {
     vec3 color = vec3(0.0);
 
     float percent = ((sin(u_time / 2.5) / 3.0) + 0.5) + (cos(u_time * 20.0) / 30.0) + (sin(u_time * 7.0) / 30.0);
-    //float percent = 0.0;
-
-    // Mix uses pct (a value from 0-1) to
-    // mix the two colors
     color = mix(colorA, colorB, percent);
-
     gl_FragColor = vec4(color,1.0);
 }
