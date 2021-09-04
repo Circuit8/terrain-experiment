@@ -11,5 +11,4 @@ bevy = "0.5"
 bevy_flycam = "*"
 noise = "0.7"
 rand = "0.8"
-bevy_frustum_culling = { git = "https://github.com/aevyrie/bevy_frustum_culling" }
 color-eyre = "0.5.11"

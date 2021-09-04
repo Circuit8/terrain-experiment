@@ -113,7 +113,12 @@ fn setup(
 
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(mesh),
-        material: materials.add(Color::rgb(0.1, 0.9, 0.1).into()),
+        material: materials.add(StandardMaterial {
+            base_color: Color::rgb_u8(123, 180, 78),
+            roughness: 1.0,
+            reflectance: 0.2,
+            ..Default::default()
+        }),
         ..Default::default()
     });
 
@@ -165,7 +170,7 @@ fn setup(
 
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.1,
+        brightness: 0.2,
     });
 
     // camera
