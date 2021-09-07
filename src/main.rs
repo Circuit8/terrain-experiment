@@ -1,10 +1,15 @@
-use bevy::prelude::*;
+use bevy;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     pbr::AmbientLight,
+    prelude::*,
+    reflect::TypeUuid,
     render::{
-        mesh::{Mesh, VertexAttributeValues},
-        pipeline::PrimitiveTopology,
+        mesh::{shape, Mesh, VertexAttributeValues},
+        pipeline::{PipelineDescriptor, PrimitiveTopology, RenderPipeline},
+        render_graph::{base, AssetRenderResourcesNode, RenderGraph},
+        renderer::RenderResources,
+        shader::ShaderStages,
     },
 };
 use bevy_flycam::PlayerPlugin;
@@ -35,6 +40,7 @@ fn main() -> Result<(), Report> {
         .add_plugin(PlayerPlugin)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
+        .add_asset::<WaterMaterial>()
         .add_startup_system(setup.system())
         .run();
     Ok(())
@@ -49,10 +55,20 @@ fn init() -> Result<(), Report> {
     Ok(())
 }
 
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "3bf9e364-f29d-4d6c-92cf-93298466c621"]
+struct WaterMaterial {
+    pub color: Color,
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut pbr_materials: ResMut<Assets<StandardMaterial>>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
+    asset_server: ResMut<AssetServer>,
+    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
+    mut render_graph: ResMut<RenderGraph>,
 ) {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
     let mut vertices: Vec<[f32; 3]> = vec![];
@@ -113,7 +129,7 @@ fn setup(
 
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(mesh),
-        material: materials.add(StandardMaterial {
+        material: pbr_materials.add(StandardMaterial {
             base_color: Color::rgb_u8(123, 180, 78),
             roughness: 1.0,
             reflectance: 0.2,
@@ -122,20 +138,50 @@ fn setup(
         ..Default::default()
     });
 
+    // Watch for changes
+    asset_server.watch_for_changes().unwrap();
+
+    // Create a new shader pipeline with shaders loaded from the asset directory
+    let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/water.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/water.frag")),
+    }));
+
+    // Add an AssetRenderResourcesNode to our Render Graph. This will bind WaterMaterial resources to
+    // our shader
+    render_graph.add_system_node(
+        "water_material",
+        AssetRenderResourcesNode::<WaterMaterial>::new(true),
+    );
+
+    // Add a Render Graph edge connecting our new "water_material" node to the main pass node. This
+    // ensures "water_material" runs before the main pass
+    render_graph
+        .add_node_edge("water_material", base::node::MAIN_PASS)
+        .unwrap();
+
+    let water_material = water_materials.add(WaterMaterial {
+        color: Color::rgb(0.01, 0.2, 0.8),
+    });
+
     // water surface
     let horizontal_plane_transform = MAP_WIDTH as f32 / 2.0 - 0.5;
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane {
-            size: MAP_WIDTH as f32,
-        })),
-        material: materials.add(Color::rgb(0.1, 0.1, 0.95).into()),
-        transform: Transform::from_xyz(
-            horizontal_plane_transform,
-            -0.5,
-            horizontal_plane_transform,
-        ),
-        ..Default::default()
-    });
+    commands
+        .spawn_bundle(MeshBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane {
+                size: MAP_WIDTH as f32,
+            })),
+            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                pipeline_handle.clone(),
+            )]),
+            transform: Transform::from_xyz(
+                horizontal_plane_transform,
+                -0.5,
+                horizontal_plane_transform,
+            ),
+            ..Default::default()
+        })
+        .insert(water_material.clone());
 
     // The sun
     commands.spawn_bundle(PbrBundle {
@@ -143,7 +189,7 @@ fn setup(
             radius: 10.0,
             subdivisions: 10,
         })),
-        material: materials.add(Color::rgb(1.0, 0.9, 0.1).into()),
+        material: pbr_materials.add(Color::rgb(1.0, 0.9, 0.1).into()),
         transform: Transform::from_xyz(
             MAP_WIDTH as f32 / 2.0,
             SUN_HEIGHT as f32,
@@ -171,11 +217,5 @@ fn setup(
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
         brightness: 0.2,
-    });
-
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
     });
 }
