@@ -6,6 +6,10 @@ layout(set=2,binding=0) uniform WaterMaterial_color {
   vec4 color;
 };
 
+layout(set=3,binding=0)uniform TimeUniform_value{
+  float time;
+};
+
 void main(){
-  o_Target = vec4(color.xyz, 0.4);
+  o_Target = vec4(color.xyz, sin(time));
 }

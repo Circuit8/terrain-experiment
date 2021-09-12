@@ -7,7 +7,7 @@ use bevy::{
     render::{
         mesh::{shape, Mesh, VertexAttributeValues},
         pipeline::{PipelineDescriptor, PrimitiveTopology, RenderPipeline},
-        render_graph::{base, AssetRenderResourcesNode, RenderGraph},
+        render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
         renderer::RenderResources,
         shader::ShaderStages,
     },
@@ -42,6 +42,7 @@ fn main() -> Result<(), Report> {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_asset::<WaterMaterial>()
         .add_startup_system(setup.system())
+        .add_system(animate_shader.system())
         .run();
     Ok(())
 }
@@ -59,6 +60,12 @@ fn init() -> Result<(), Report> {
 #[uuid = "3bf9e364-f29d-4d6c-92cf-93298466c621"]
 struct WaterMaterial {
     pub color: Color,
+}
+
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "463e4b8a-d555-4fc2-ba9f-4c880063ba92"]
+struct TimeUniform {
+    value: f32,
 }
 
 fn setup(
@@ -143,12 +150,16 @@ fn setup(
 
     // Create a new shader pipeline with shaders loaded from the asset directory
     let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
-        vertex: asset_server.load::<Shader, _>("shaders/water.vert"),
+        vertex: asset_server.load::<Shader, _>("shaders/mvp.vert"),
         fragment: Some(asset_server.load::<Shader, _>("shaders/water.frag")),
     }));
 
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind WaterMaterial resources to
     // our shader
+    render_graph.add_system_node(
+        "time_uniform",
+        RenderResourcesNode::<TimeUniform>::new(true),
+    );
     render_graph.add_system_node(
         "water_material",
         AssetRenderResourcesNode::<WaterMaterial>::new(true),
@@ -158,6 +169,9 @@ fn setup(
     // ensures "water_material" runs before the main pass
     render_graph
         .add_node_edge("water_material", base::node::MAIN_PASS)
+        .unwrap();
+    render_graph
+        .add_node_edge("time_uniform", base::node::MAIN_PASS)
         .unwrap();
 
     let water_material = water_materials.add(WaterMaterial {
@@ -181,7 +195,8 @@ fn setup(
             ),
             ..Default::default()
         })
-        .insert(water_material.clone());
+        .insert(water_material.clone())
+        .insert(TimeUniform { value: 0.0 });
 
     // The sun
     commands.spawn_bundle(PbrBundle {
@@ -218,4 +233,12 @@ fn setup(
         color: Color::WHITE,
         brightness: 0.2,
     });
+}
+
+/// In this system we query for the `TimeComponent` and global `Time` resource, and set
+/// `time.seconds_since_startup()` as the `value` of the `TimeComponent`. This value will be
+/// accessed by the fragment shader and used to animate the shader.
+fn animate_shader(time: Res<Time>, mut query: Query<&mut TimeUniform>) {
+    let mut time_uniform = query.single_mut().unwrap();
+    time_uniform.value = time.seconds_since_startup() as f32;
 }
