@@ -134,22 +134,25 @@ fn setup(
         VertexAttributeValues::Float3(normals),
     );
 
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(mesh),
-        material: pbr_materials.add(StandardMaterial {
-            base_color: Color::rgb_u8(123, 180, 78),
-            roughness: 1.0,
-            reflectance: 0.2,
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
     // Watch for changes
     asset_server.watch_for_changes().unwrap();
 
+    // Terrain Shader
+    let terrain_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/terrain.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/terrain.frag")),
+    }));
+
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(mesh),
+        render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+            terrain_pipeline_handle.clone(),
+        )]),
+        ..Default::default()
+    });
+
     // Create a new shader pipeline with shaders loaded from the asset directory
-    let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+    let water_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
         vertex: asset_server.load::<Shader, _>("shaders/mvp.vert"),
         fragment: Some(asset_server.load::<Shader, _>("shaders/water.frag")),
     }));
@@ -186,7 +189,7 @@ fn setup(
                 size: MAP_WIDTH as f32,
             })),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                pipeline_handle.clone(),
+                water_pipeline_handle.clone(),
             )]),
             transform: Transform::from_xyz(
                 horizontal_plane_transform,

@@ -11,5 +11,5 @@ layout(set=3,binding=0)uniform TimeUniform_value{
 };
 
 void main(){
-  o_Target = vec4(color.xyz, sin(time));
+  o_Target = vec4(color.xyz, 0.85);
 }
