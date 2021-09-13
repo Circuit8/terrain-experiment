@@ -12,7 +12,7 @@ use bevy::{
         shader::ShaderStages,
     },
 };
-use bevy_flycam::PlayerPlugin;
+use bevy_flycam::{MovementSettings, PlayerPlugin};
 use color_eyre::Report;
 use noise::{
     utils::{NoiseMapBuilder, PlaneMapBuilder},
@@ -38,6 +38,11 @@ fn main() -> Result<(), Report> {
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
         .add_plugin(PlayerPlugin)
+        .insert_resource(MovementSettings {
+            sensitivity: 0.00010, // default: 0.00012
+            speed: 40.0,          // default: 12.0
+        })
+        .insert_resource(ClearColor(Color::rgb_u8(142, 192, 255)))
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_asset::<WaterMaterial>()
@@ -68,15 +73,22 @@ struct TimeUniform {
     value: f32,
 }
 
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "93fb26fc-6c05-489b-9029-601edf703b6b"]
+struct GrassTexture {
+    pub texture: Handle<Texture>,
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut pbr_materials: ResMut<Assets<StandardMaterial>>,
     mut water_materials: ResMut<Assets<WaterMaterial>>,
     asset_server: ResMut<AssetServer>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
+    // asset_server.load::<Texture, _>("textures/grass.jpg");
+
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
     let mut vertices: Vec<[f32; 3]> = vec![];
 
@@ -134,14 +146,19 @@ fn setup(
         VertexAttributeValues::Float3(normals),
     );
 
-    // Watch for changes
-    asset_server.watch_for_changes().unwrap();
-
     // Terrain Shader
     let terrain_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
         vertex: asset_server.load::<Shader, _>("shaders/terrain.vert"),
         fragment: Some(asset_server.load::<Shader, _>("shaders/terrain.frag")),
     }));
+
+    // render_graph.add_system_node(
+    //     "my_array_texture",
+    //     AssetRenderResourcesNode::<GrassTexture>::new(true),
+    // );
+    // render_graph
+    //     .add_node_edge("my_array_texture", base::node::MAIN_PASS)
+    //     .unwrap();
 
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(mesh),
@@ -201,13 +218,21 @@ fn setup(
         .insert(water_material.clone())
         .insert(TimeUniform { value: 0.0 });
 
+    // Sun Shader
+    let sun_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/sun.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/sun.frag")),
+    }));
+
     // The sun
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Icosphere {
             radius: 10.0,
             subdivisions: 10,
         })),
-        material: pbr_materials.add(Color::rgb(1.0, 0.9, 0.1).into()),
+        render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+            sun_pipeline_handle.clone(),
+        )]),
         transform: Transform::from_xyz(
             MAP_WIDTH as f32 / 2.0,
             SUN_HEIGHT as f32,
@@ -216,26 +241,27 @@ fn setup(
         ..Default::default()
     });
 
-    commands.spawn_bundle(LightBundle {
-        light: Light {
-            color: Color::rgb(1.0, 0.9, 0.1),
-            intensity: 4000.0,
-            fov: f32::to_radians(170.0),
-            range: (MAP_WIDTH as f32).max(SUN_HEIGHT as f32),
-            ..Default::default()
-        },
-        transform: Transform::from_xyz(
-            MAP_WIDTH as f32 / 2.0,
-            SUN_HEIGHT as f32,
-            MAP_WIDTH as f32 / 2.0,
-        ),
-        ..Default::default()
-    });
+    // only required with PBR right?
+    // commands.spawn_bundle(LightBundle {
+    //     light: Light {
+    //         color: Color::rgb(1.0, 0.9, 0.1),
+    //         intensity: 4000.0,
+    //         fov: f32::to_radians(170.0),
+    //         range: (MAP_WIDTH as f32).max(SUN_HEIGHT as f32),
+    //         ..Default::default()
+    //     },
+    //     transform: Transform::from_xyz(
+    //         MAP_WIDTH as f32 / 2.0,
+    //         SUN_HEIGHT as f32,
+    //         MAP_WIDTH as f32 / 2.0,
+    //     ),
+    //     ..Default::default()
+    // });
 
-    commands.insert_resource(AmbientLight {
-        color: Color::WHITE,
-        brightness: 0.2,
-    });
+    // commands.insert_resource(AmbientLight {
+    //     color: Color::WHITE,
+    //     brightness: 0.2,
+    // });
 }
 
 /// In this system we query for the `TimeComponent` and global `Time` resource, and set
