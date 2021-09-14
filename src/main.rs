@@ -13,6 +13,7 @@ use bevy::{
 };
 use bevy_flycam::{MovementSettings, PlayerPlugin};
 use color_eyre::Report;
+use bevy_inspector_egui::WorldInspectorPlugin;
 
 mod settings;
 mod terrain;
@@ -32,6 +33,7 @@ fn main() -> Result<(), Report> {
         })
         .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins)
+        .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(PlayerPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.00010, // default: 0.00012
