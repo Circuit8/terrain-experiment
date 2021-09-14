@@ -4,26 +4,33 @@ use bevy::render::{
     pipeline::PrimitiveTopology,
 };
 use noise::{
-    utils::{NoiseMapBuilder, PlaneMapBuilder},
-    Perlin,
+    utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
+    Fbm, MultiFractal, Seedable,
 };
 
-pub fn generate_mesh(
+pub fn generate_noise_map(
     map_width: usize,
-    height_scale: f64, // increase to make hills higher
-    noise_scale: f64,  // increase for more hills closer together
-) -> Mesh {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    let mut vertices: Vec<[f32; 3]> = vec![];
-
-    let perlin = Perlin::new();
-    let builder = PlaneMapBuilder::new(&perlin)
+    noise_scale: f64, // increase for more hills closer together
+    seed: u32,
+    lacunarity: f64,
+    persistance: f64,
+    octaves: usize,
+) -> NoiseMap {
+    let fbm = Fbm::new()
+        .set_seed(seed)
+        .set_lacunarity(lacunarity)
+        .set_persistence(persistance)
+        .set_octaves(octaves);
+    let builder = PlaneMapBuilder::new(&fbm)
         .set_size(map_width, map_width)
         .set_x_bounds(-1.0 * noise_scale, 1.0 * noise_scale)
         .set_y_bounds(-1.0 * noise_scale, 1.0 * noise_scale);
-    let noise_map = builder.build();
+    builder.build()
+}
 
-    noise_map.write_to_file("terrain-noise-map.png");
+pub fn generate_mesh(noise_map: &NoiseMap, map_width: usize, height_scale: f64) -> Mesh {
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut vertices: Vec<[f32; 3]> = vec![];
 
     for x in 0..map_width {
         for z in 0..map_width {

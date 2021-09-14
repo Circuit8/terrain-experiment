@@ -17,7 +17,7 @@ use color_eyre::Report;
 mod settings;
 mod terrain;
 
-use crate::settings::{MAP_HEIGHT_SCALE, MAP_NOISE_SCALE, MAP_WIDTH, SUN_HEIGHT};
+use crate::settings::*;
 
 fn main() -> Result<(), Report> {
     init()?;
@@ -82,9 +82,16 @@ fn setup(
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    // asset_server.load::<Texture, _>("textures/grass.jpg");
+    let noise_map = terrain::generate_noise_map(
+        MAP_WIDTH,
+        MAP_NOISE_SCALE,
+        MAP_NOISE_SEED,
+        MAP_NOISE_LACUNARITY,
+        MAP_NOISE_PERSISTENCE,
+        MAP_NOISE_OCTAVES,
+    );
 
-    let mesh = terrain::generate_mesh(MAP_WIDTH, MAP_HEIGHT_SCALE, MAP_NOISE_SCALE);
+    let terrain_mesh = terrain::generate_mesh(&noise_map, MAP_WIDTH, MAP_HEIGHT_SCALE);
 
     // Terrain Shader
     let terrain_pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
@@ -92,16 +99,8 @@ fn setup(
         fragment: Some(asset_server.load::<Shader, _>("shaders/terrain.frag")),
     }));
 
-    // render_graph.add_system_node(
-    //     "my_array_texture",
-    //     AssetRenderResourcesNode::<GrassTexture>::new(true),
-    // );
-    // render_graph
-    //     .add_node_edge("my_array_texture", base::node::MAIN_PASS)
-    //     .unwrap();
-
     commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(mesh),
+        mesh: meshes.add(terrain_mesh),
         render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
             terrain_pipeline_handle.clone(),
         )]),
