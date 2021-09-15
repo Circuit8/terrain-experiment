@@ -1,12 +1,210 @@
 use bevy;
-use bevy::render::{
-    mesh::{Mesh, VertexAttributeValues},
-    pipeline::PrimitiveTopology,
+use bevy::{
+    ecs::system::{Res, ResMut},
+    prelude::*,
+    reflect::TypeUuid,
+    render::{
+        mesh::{shape, Mesh, VertexAttributeValues},
+        pipeline::PrimitiveTopology,
+        pipeline::{PipelineDescriptor, RenderPipeline},
+        render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
+        renderer::RenderResources,
+        shader::ShaderStages,
+    },
 };
+use bevy_inspector_egui::Inspectable;
 use noise::{
     utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
     Fbm, MultiFractal, Seedable,
 };
+
+use crate::TimeUniform;
+
+#[derive(Inspectable)]
+pub struct Config {
+    #[inspectable(min = 2)]
+    map_width: usize,
+    #[inspectable(min = 0.0001)]
+    noise_scale: f64,
+    #[inspectable(min = 1)]
+    seed: u32,
+    #[inspectable(min = 0.0001)]
+    lacunarity: f64, // increase for more hills closer together
+    #[inspectable(min = 0.0001)]
+    persistance: f64,
+    #[inspectable(min = 1)]
+    octaves: usize,
+    #[inspectable(min = 1.0)]
+    height_scale: f64,
+    #[inspectable(min = 0.0)]
+    sun_height: f64,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            map_width: 512,
+            height_scale: 60.0,
+            noise_scale: 1.8,
+            seed: 2,
+            octaves: 4,
+            lacunarity: 2.0,
+            persistance: 0.5,
+            sun_height: 80.0,
+        }
+    }
+}
+
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "3bf9e364-f29d-4d6c-92cf-93298466c621"]
+pub struct WaterMaterial {
+    pub color: Color,
+}
+
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "93fb26fc-6c05-489b-9029-601edf703b6b"]
+struct GrassTexture {
+    pub texture: Handle<Texture>,
+}
+
+pub struct Terrain;
+
+pub struct TerrainAssetHandles {
+    pub water_material: Handle<WaterMaterial>,
+    pub terrain_pipeline: Handle<PipelineDescriptor>,
+    pub water_pipeline: Handle<PipelineDescriptor>,
+    pub sun_pipeline: Handle<PipelineDescriptor>,
+}
+
+pub fn setup(
+    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
+    asset_server: ResMut<AssetServer>,
+    mut render_graph: ResMut<RenderGraph>,
+    mut water_materials: ResMut<Assets<WaterMaterial>>,
+    mut commands: Commands,
+) {
+    // Terrain Shader
+    let terrain_pipeline = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/terrain.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/terrain.frag")),
+    }));
+
+    // Create a new shader pipeline with shaders loaded from the asset directory
+    let water_pipeline = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/mvp.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/water.frag")),
+    }));
+
+    // Add an AssetRenderResourcesNode to our Render Graph. This will bind WaterMaterial resources to
+    // our shader
+    render_graph.add_system_node(
+        "time_uniform",
+        RenderResourcesNode::<TimeUniform>::new(true),
+    );
+    render_graph.add_system_node(
+        "water_material",
+        AssetRenderResourcesNode::<WaterMaterial>::new(true),
+    );
+
+    // Add a Render Graph edge connecting our new "water_material" node to the main pass node. This
+    // ensures "water_material" runs before the main pass
+    render_graph
+        .add_node_edge("water_material", base::node::MAIN_PASS)
+        .unwrap();
+    render_graph
+        .add_node_edge("time_uniform", base::node::MAIN_PASS)
+        .unwrap();
+
+    let water_material = water_materials.add(WaterMaterial {
+        color: Color::rgb(0.01, 0.2, 0.8),
+    });
+
+    let sun_pipeline = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
+        vertex: asset_server.load::<Shader, _>("shaders/sun.vert"),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/sun.frag")),
+    }));
+
+    commands.insert_resource(TerrainAssetHandles {
+        water_material,
+        terrain_pipeline,
+        water_pipeline,
+        sun_pipeline,
+    })
+}
+
+// Rebuild the terrain if it changes
+pub fn rebuild_on_change(
+    mut commands: Commands,
+    config: Res<Config>,
+    asset_handles: Res<TerrainAssetHandles>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    terrain_query: Query<(Entity, &Terrain)>,
+) {
+    if config.is_changed() {
+        // Destroy all the previous terrain entities like the water, ground, sun etc (we'll recreate them all)
+        for (entity, _) in terrain_query.iter() {
+            commands.entity(entity).despawn()
+        }
+
+        let noise_map = generate_noise_map(
+            config.map_width,
+            config.noise_scale,
+            config.seed,
+            config.lacunarity,
+            config.persistance,
+            config.octaves,
+        );
+
+        let terrain_mesh = generate_mesh(&noise_map, config.map_width, config.height_scale);
+
+        commands
+            .spawn_bundle(PbrBundle {
+                mesh: meshes.add(terrain_mesh),
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    asset_handles.terrain_pipeline.clone(),
+                )]),
+                ..Default::default()
+            })
+            .insert(Terrain);
+
+        // water surface
+        let horizontal_plane_transform = config.map_width as f32 / 2.0 - 0.5;
+        commands
+            .spawn_bundle(MeshBundle {
+                mesh: meshes.add(Mesh::from(shape::Plane {
+                    size: config.map_width as f32,
+                })),
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    asset_handles.water_pipeline.clone(),
+                )]),
+                transform: Transform::from_xyz(
+                    horizontal_plane_transform,
+                    -0.5,
+                    horizontal_plane_transform,
+                ),
+                ..Default::default()
+            })
+            .insert(asset_handles.water_material.clone())
+            .insert(TimeUniform { value: 0.0 })
+            .insert(Terrain);
+
+        // The sun
+        commands
+            .spawn_bundle(PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Icosphere {
+                    radius: 10.0,
+                    subdivisions: 10,
+                })),
+                transform: Transform::from_xyz(
+                    config.map_width as f32 / 2.0,
+                    config.sun_height as f32, // pub const SUN_HEIGHT: f64 = MAP_HEIGHT_SCALE + 50.0;
+                    config.map_width as f32 / 2.0,
+                ),
+                ..Default::default()
+            })
+            .insert(Terrain);
+    }
+}
 
 pub fn generate_noise_map(
     map_width: usize,
