@@ -1,10 +1,11 @@
 use bevy;
 use bevy::{
     ecs::system::{Res, ResMut},
+    math::Vec3,
     prelude::*,
     reflect::TypeUuid,
     render::{
-        mesh::{shape, Mesh, VertexAttributeValues},
+        mesh::{shape, Indices, Mesh, VertexAttributeValues},
         pipeline::PrimitiveTopology,
         pipeline::{PipelineDescriptor, RenderPipeline},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
@@ -17,6 +18,7 @@ use noise::{
     utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
     Fbm, MultiFractal, Seedable,
 };
+use std::convert::From;
 
 use crate::TimeUniform;
 
@@ -139,6 +141,7 @@ pub fn rebuild_on_change(
     asset_handles: Res<TerrainAssetHandles>,
     mut meshes: ResMut<Assets<Mesh>>,
     terrain_query: Query<(Entity, &Terrain)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if config.is_changed() {
         // Destroy all the previous terrain entities like the water, ground, sun etc (we'll recreate them all)
@@ -155,14 +158,16 @@ pub fn rebuild_on_change(
             config.octaves,
         );
 
-        let terrain_mesh = generate_mesh(&noise_map, config.map_width, config.height_scale);
+        let mut terrain_mesh_generator = TerrainMeshGenerator::new(noise_map, config.height_scale);
+        let terrain_mesh = terrain_mesh_generator.generate();
 
         commands
             .spawn_bundle(PbrBundle {
                 mesh: meshes.add(terrain_mesh),
-                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                    asset_handles.terrain_pipeline.clone(),
-                )]),
+                material: materials.add(StandardMaterial {
+                    base_color: Color::GRAY,
+                    ..Default::default()
+                }),
                 ..Default::default()
             })
             .insert(Terrain);
@@ -226,57 +231,109 @@ pub fn generate_noise_map(
     builder.build()
 }
 
-pub fn generate_mesh(noise_map: &NoiseMap, map_width: usize, height_scale: f64) -> Mesh {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    let mut vertices: Vec<[f32; 3]> = vec![];
+struct TerrainMeshGenerator {
+    pub height_map: NoiseMap,
+    pub height_scale: f64,
+    pub vertices: Vec<[f32; 3]>,
+    pub triangles: Vec<u32>,
+    pub uvs: Vec<[f32; 2]>,
+    pub normals: Vec<[f32; 3]>,
+    triangles_index: u32,
+}
 
-    for x in 0..map_width {
-        for z in 0..map_width {
-            let top_left = [
-                x as f32,
-                (noise_map.get_value(x, z) * height_scale) as f32,
-                z as f32,
-            ];
-            let bottom_left = [
-                x as f32,
-                (noise_map.get_value(x, z + 1) * height_scale) as f32,
-                (z + 1) as f32,
-            ];
-            let bottom_right = [
-                (x + 1) as f32,
-                (noise_map.get_value(x + 1, z + 1) * height_scale) as f32,
-                (z + 1) as f32,
-            ];
-            let top_right = [
-                (x + 1) as f32,
-                (noise_map.get_value(x + 1, z) * height_scale) as f32,
-                z as f32,
-            ];
-
-            // Triangle: ◺
-            vertices.push(bottom_right);
-            vertices.push(top_left);
-            vertices.push(bottom_left);
-            // Triangle: ◹
-            vertices.push(top_right);
-            vertices.push(top_left);
-            vertices.push(bottom_right);
+impl TerrainMeshGenerator {
+    pub fn new(height_map: NoiseMap, height_scale: f64) -> TerrainMeshGenerator {
+        TerrainMeshGenerator {
+            height_map,
+            height_scale,
+            vertices: vec![],
+            triangles: vec![],
+            uvs: vec![],
+            normals: vec![],
+            triangles_index: 0,
         }
     }
 
-    let uvs = vec![[0.0, 0.0, 0.0]; vertices.len()];
-    // might have to do something different with the normals when we have heights
-    let normals = vec![[0.0f32, 1.0f32, 0.0f32]; vertices.len()];
+    pub fn generate(&mut self) -> Mesh {
+        let map_width = self.height_map.size().0;
+        let map_height = self.height_map.size().1;
+        let map_size = map_width * map_height;
 
-    mesh.set_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        VertexAttributeValues::Float3(vertices),
-    );
-    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float3(uvs));
-    mesh.set_attribute(
-        Mesh::ATTRIBUTE_NORMAL,
-        VertexAttributeValues::Float3(normals),
-    );
+        self.vertices = vec![[0., 0., 0.]; map_size];
+        self.normals = vec![[0., 0., 0.]; map_size];
+        self.uvs = vec![[0., 0.]; map_size];
+        self.triangles = vec![0; (map_width - 1) * (map_height - 1) * 6];
+        self.triangles_index = 0;
 
-    return mesh;
+        let mut vertex_index = 0;
+        for x in 0..map_width {
+            for z in 0..map_height {
+                let height = self.height_map.get_value(x, z) * self.height_scale;
+                self.vertices[vertex_index] = [x as f32, height as f32, z as f32];
+                self.uvs[vertex_index] =
+                    [x as f32 / map_width as f32, z as f32 / map_height as f32];
+
+                if x < map_width - 1 && z < map_height - 1 {
+                    let top_left = vertex_index;
+                    let top_right = vertex_index + 1;
+                    let bottom_left = vertex_index + map_width;
+                    let bottom_right = vertex_index + map_width + 1;
+                    self.add_triangle(top_left, bottom_right, bottom_left);
+                    self.add_triangle(bottom_right, top_left, top_right);
+                }
+
+                vertex_index += 1;
+            }
+        }
+
+        self.create_mesh()
+    }
+
+    fn add_triangle(&mut self, a: usize, b: usize, c: usize) {
+        self.triangles[self.triangles_index as usize] = a as u32;
+        self.triangles[(self.triangles_index + 1) as usize] = b as u32;
+        self.triangles[(self.triangles_index + 2) as usize] = c as u32;
+        self.triangles_index += 3;
+    }
+
+    fn create_mesh(&mut self) -> Mesh {
+        self.calculate_normals();
+
+        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        mesh.set_indices(Some(Indices::U32(self.triangles.clone())));
+        mesh.set_attribute(
+            Mesh::ATTRIBUTE_POSITION,
+            VertexAttributeValues::Float3(self.vertices.clone()),
+        );
+        mesh.set_attribute(
+            Mesh::ATTRIBUTE_UV_0,
+            VertexAttributeValues::Float2(self.uvs.clone()),
+        );
+        mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals.clone());
+
+        return mesh;
+    }
+
+    // Right now this is not a perfect way of handling the normals.
+    // What we should be doing is calculating the normal of each vertex, based on the average normal of each vertexes triangles its a part of
+    // Instead were just setting the normal of all the vertexes of a triangle to the normal of that plane, and then overwriting some as we go along.
+    // This will not give us the most realistic pbr lighting.
+    fn calculate_normals(&mut self) {
+        for triangle_indexes in self.triangles.chunks_exact(3) {
+            let normal = self.face_normal(
+                self.vertices[triangle_indexes[0] as usize],
+                self.vertices[triangle_indexes[1] as usize],
+                self.vertices[triangle_indexes[2] as usize],
+            );
+
+            self.normals[triangle_indexes[0] as usize] = normal;
+            self.normals[triangle_indexes[1] as usize] = normal;
+            self.normals[triangle_indexes[2] as usize] = normal;
+        }
+    }
+
+    fn face_normal(&self, a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
+        let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
+        (b - a).cross(c - a).into()
+    }
 }
