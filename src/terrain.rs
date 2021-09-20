@@ -5,12 +5,13 @@ use bevy::{
     prelude::*,
     reflect::TypeUuid,
     render::{
-        mesh::{shape, Indices, Mesh, VertexAttributeValues},
+        mesh::{Indices, Mesh, VertexAttributeValues},
+        pipeline::PipelineDescriptor,
         pipeline::PrimitiveTopology,
-        pipeline::{PipelineDescriptor, RenderPipeline},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
         renderer::RenderResources,
         shader::ShaderStages,
+        texture::{Extent3d, TextureDimension, TextureFormat},
     },
 };
 use bevy_inspector_egui::Inspectable;
@@ -38,8 +39,6 @@ pub struct Config {
     octaves: usize,
     #[inspectable(min = 1.0)]
     height_scale: f64,
-    #[inspectable(min = 0.0)]
-    sun_height: f64,
 }
 
 impl Default for Config {
@@ -52,7 +51,6 @@ impl Default for Config {
             octaves: 4,
             lacunarity: 2.0,
             persistance: 0.5,
-            sun_height: 80.0,
         }
     }
 }
@@ -138,10 +136,10 @@ pub fn setup(
 pub fn rebuild_on_change(
     mut commands: Commands,
     config: Res<Config>,
-    asset_handles: Res<TerrainAssetHandles>,
     mut meshes: ResMut<Assets<Mesh>>,
     terrain_query: Query<(Entity, &Terrain)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut textures: ResMut<Assets<Texture>>,
 ) {
     if config.is_changed() {
         // Destroy all the previous terrain entities like the water, ground, sun etc (we'll recreate them all)
@@ -149,15 +147,10 @@ pub fn rebuild_on_change(
             commands.entity(entity).despawn()
         }
 
-        let noise_map = generate_noise_map(
-            config.map_width,
-            config.noise_scale,
-            config.seed,
-            config.lacunarity,
-            config.persistance,
-            config.octaves,
-        );
+        let noise_map = generate_noise_map(&config);
 
+        let color_map = generate_color_map(&noise_map);
+        let texture = generate_texture(&color_map);
         let mut terrain_mesh_generator = TerrainMeshGenerator::new(noise_map, config.height_scale);
         let terrain_mesh = terrain_mesh_generator.generate();
 
@@ -165,69 +158,26 @@ pub fn rebuild_on_change(
             .spawn_bundle(PbrBundle {
                 mesh: meshes.add(terrain_mesh),
                 material: materials.add(StandardMaterial {
-                    base_color: Color::GRAY,
+                    base_color_texture: Some(textures.add(texture)),
+                    // unlit: true,
                     ..Default::default()
                 }),
-                ..Default::default()
-            })
-            .insert(Terrain);
-
-        // water surface
-        let horizontal_plane_transform = config.map_width as f32 / 2.0 - 0.5;
-        commands
-            .spawn_bundle(MeshBundle {
-                mesh: meshes.add(Mesh::from(shape::Plane {
-                    size: config.map_width as f32,
-                })),
-                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                    asset_handles.water_pipeline.clone(),
-                )]),
-                transform: Transform::from_xyz(
-                    horizontal_plane_transform,
-                    -0.5,
-                    horizontal_plane_transform,
-                ),
-                ..Default::default()
-            })
-            .insert(asset_handles.water_material.clone())
-            .insert(TimeUniform { value: 0.0 })
-            .insert(Terrain);
-
-        // The sun
-        commands
-            .spawn_bundle(PbrBundle {
-                mesh: meshes.add(Mesh::from(shape::Icosphere {
-                    radius: 10.0,
-                    subdivisions: 10,
-                })),
-                transform: Transform::from_xyz(
-                    config.map_width as f32 / 2.0,
-                    config.sun_height as f32, // pub const SUN_HEIGHT: f64 = MAP_HEIGHT_SCALE + 50.0;
-                    config.map_width as f32 / 2.0,
-                ),
                 ..Default::default()
             })
             .insert(Terrain);
     }
 }
 
-pub fn generate_noise_map(
-    map_width: usize,
-    noise_scale: f64, // increase for more hills closer together
-    seed: u32,
-    lacunarity: f64,
-    persistance: f64,
-    octaves: usize,
-) -> NoiseMap {
+pub fn generate_noise_map(config: &Config) -> NoiseMap {
     let fbm = Fbm::new()
-        .set_seed(seed)
-        .set_lacunarity(lacunarity)
-        .set_persistence(persistance)
-        .set_octaves(octaves);
+        .set_seed(config.seed)
+        .set_lacunarity(config.lacunarity)
+        .set_persistence(config.persistance)
+        .set_octaves(config.octaves);
     let builder = PlaneMapBuilder::new(&fbm)
-        .set_size(map_width, map_width)
-        .set_x_bounds(-1.0 * noise_scale, 1.0 * noise_scale)
-        .set_y_bounds(-1.0 * noise_scale, 1.0 * noise_scale);
+        .set_size(config.map_width, config.map_width)
+        .set_x_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale)
+        .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
     builder.build()
 }
 
@@ -266,20 +216,25 @@ impl TerrainMeshGenerator {
         self.triangles_index = 0;
 
         let mut vertex_index = 0;
-        for x in 0..map_width {
-            for z in 0..map_height {
-                let height = self.height_map.get_value(x, z) * self.height_scale;
-                self.vertices[vertex_index] = [x as f32, height as f32, z as f32];
+        for y in 0..map_height {
+            for x in 0..map_width {
+                self.height_map.set_value(
+                    x,
+                    y,
+                    self.height_map.get_value(x, y) * self.height_scale,
+                );
+                let height = self.height_map.get_value(x, y);
+                self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
                 self.uvs[vertex_index] =
-                    [x as f32 / map_width as f32, z as f32 / map_height as f32];
+                    [x as f32 / map_width as f32, y as f32 / map_height as f32];
 
-                if x < map_width - 1 && z < map_height - 1 {
+                if x < map_width - 1 && y < map_height - 1 {
                     let top_left = vertex_index;
                     let top_right = vertex_index + 1;
                     let bottom_left = vertex_index + map_width;
                     let bottom_right = vertex_index + map_width + 1;
-                    self.add_triangle(top_left, bottom_right, bottom_left);
-                    self.add_triangle(bottom_right, top_left, top_right);
+                    self.add_triangle(bottom_right, top_left, bottom_left);
+                    self.add_triangle(top_left, bottom_right, top_right);
                 }
 
                 vertex_index += 1;
@@ -335,5 +290,59 @@ impl TerrainMeshGenerator {
     fn face_normal(&self, a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
         let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
         (b - a).cross(c - a).into()
+    }
+}
+
+fn generate_color_map(height_map: &NoiseMap) -> ColorMap {
+    let mut color_map = ColorMap::new(height_map.size());
+    for y in 0..height_map.size().0 {
+        for x in 0..height_map.size().1 {
+            let height = height_map.get_value(x, y);
+
+            let color = if height < 0.0 {
+                Color::rgb(0.0, 0.1, 0.8)
+            } else if height < 0.1 {
+                Color::rgb(0.9, 0.78, 0.01)
+            } else if height < 0.4 {
+                Color::rgb(0.01, 0.9, 0.05)
+            } else {
+                Color::rgb(0.65, 0.65, 0.65)
+            };
+            color_map.colors.push(color);
+        }
+    }
+    return color_map;
+}
+
+fn generate_texture(color_map: &ColorMap) -> Texture {
+    let mut image_buffer: Vec<u8> = vec![];
+
+    for color in color_map.colors.iter() {
+        image_buffer.push((color.r() * 255.) as u8);
+        image_buffer.push((color.g() * 255.) as u8);
+        image_buffer.push((color.b() * 255.) as u8);
+        image_buffer.push(255);
+    }
+
+    Texture::new(
+        Extent3d::new(color_map.size.0 as u32, color_map.size.1 as u32, 1),
+        TextureDimension::D2,
+        image_buffer,
+        TextureFormat::Rgba8Unorm,
+    )
+}
+
+#[derive(Default)]
+struct ColorMap {
+    pub colors: Vec<Color>,
+    pub size: (usize, usize),
+}
+
+impl ColorMap {
+    pub fn new(size: (usize, usize)) -> ColorMap {
+        ColorMap {
+            colors: vec![],
+            size,
+        }
     }
 }
