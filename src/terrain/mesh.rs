@@ -10,6 +10,7 @@ use noise::utils::NoiseMap;
 pub struct Generator {
     pub height_map: NoiseMap,
     pub height_scale: f64,
+    pub simplification_level: u32,
     pub vertices: Vec<[f32; 3]>,
     pub triangles: Vec<u32>,
     pub uvs: Vec<[f32; 2]>,
@@ -18,10 +19,11 @@ pub struct Generator {
 }
 
 impl Generator {
-    pub fn new(height_map: NoiseMap, height_scale: f64) -> Generator {
+    pub fn new(height_map: NoiseMap, height_scale: f64, simplification_level: u32) -> Generator {
         Generator {
             height_map,
             height_scale,
+            simplification_level,
             vertices: vec![],
             triangles: vec![],
             uvs: vec![],
@@ -41,9 +43,18 @@ impl Generator {
         self.triangles = vec![0; (map_width - 1) * (map_height - 1) * 6];
         self.triangles_index = 0;
 
+        let mesh_simplification_increment = if self.simplification_level == 0 {
+            1
+        } else {
+            (self.simplification_level * 2) as usize
+        };
+        let vertices_per_line = (map_width - 1) / mesh_simplification_increment + 1;
+
         let mut vertex_index = 0;
-        for y in 0..map_height {
-            for x in 0..map_width {
+        let mut y = 0;
+        while y < map_height {
+            let mut x = 0;
+            while x < map_width {
                 let height = self.height_map.get_value(x, y) * self.height_scale;
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
@@ -53,14 +64,16 @@ impl Generator {
                 if x < map_width - 1 && y < map_height - 1 {
                     let top_left = vertex_index;
                     let top_right = vertex_index + 1;
-                    let bottom_left = vertex_index + map_width;
-                    let bottom_right = vertex_index + map_width + 1;
+                    let bottom_left = vertex_index + vertices_per_line;
+                    let bottom_right = vertex_index + vertices_per_line + 1;
                     self.add_triangle(bottom_right, top_left, bottom_left);
                     self.add_triangle(top_left, bottom_right, top_right);
                 }
 
                 vertex_index += 1;
+                x += mesh_simplification_increment;
             }
+            y += mesh_simplification_increment;
         }
 
         self.create_mesh()

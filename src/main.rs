@@ -1,10 +1,11 @@
 use bevy;
-use bevy::pbr::AmbientLight;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
-    render::renderer::RenderResources,
+    render::{renderer::RenderResources, wireframe::WireframePlugin},
+    wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
 use bevy_flycam::{MovementSettings, PlayerPlugin};
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
@@ -20,7 +21,7 @@ fn main() -> Result<(), Report> {
             title: "Josh's World".to_string(),
             width: 2000.,
             height: 1200.,
-            vsync: true,
+            vsync: false,
             ..Default::default()
         })
         .insert_resource(Msaa { samples: 4 })
@@ -28,12 +29,19 @@ fn main() -> Result<(), Report> {
             sensitivity: 0.00010, // default: 0.00012
             speed: 40.0,          // default: 12.0
         })
+        .insert_resource(WgpuOptions {
+            features: WgpuFeatures {
+                features: vec![WgpuFeature::NonFillPolygonMode], // Wireframe rendering for debugging requires NonFillPolygonMode feature
+            },
+            ..Default::default()
+        })
         .add_plugin(PlayerPlugin)
         .add_plugins(DefaultPlugins)
         .add_plugin(InspectorPlugin::<Config>::new())
         .add_plugin(InspectorPlugin::<terrain::Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(WireframePlugin)
         .add_startup_system(setup.system())
         .add_system(increase_shaders_time.system())
         .add_system(terrain::rebuild_on_change.system())

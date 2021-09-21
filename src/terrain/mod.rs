@@ -1,4 +1,5 @@
 use bevy;
+use bevy::render::wireframe::Wireframe;
 use bevy::{
     ecs::system::{Res, ResMut},
     prelude::*,
@@ -29,7 +30,8 @@ pub struct Config {
     #[inspectable(min = 1.0)]
     height_scale: f64,
     #[inspectable(min = 0, max = 6)]
-    level_of_detail: usize,
+    simplification_level: u32,
+    wireframe: bool,
 }
 
 impl Default for Config {
@@ -41,7 +43,8 @@ impl Default for Config {
             octaves: 4,
             lacunarity: 2.0,
             persistance: 0.5,
-            level_of_detail: 0,
+            simplification_level: 0,
+            wireframe: false,
         }
     }
 }
@@ -65,20 +68,24 @@ pub fn rebuild_on_change(
 
         let noise_map = generate_noise_map(&config);
         let texture = texture::generate(&noise_map);
-        let mut terrain_mesh_generator = mesh::Generator::new(noise_map, config.height_scale);
+        let mut terrain_mesh_generator =
+            mesh::Generator::new(noise_map, config.height_scale, config.simplification_level);
         let mesh = terrain_mesh_generator.generate();
 
-        commands
-            .spawn_bundle(PbrBundle {
-                mesh: meshes.add(mesh),
-                material: materials.add(StandardMaterial {
-                    base_color_texture: Some(textures.add(texture)),
-                    // unlit: true,
-                    ..Default::default()
-                }),
+        let mut builder = commands.spawn_bundle(PbrBundle {
+            mesh: meshes.add(mesh),
+            material: materials.add(StandardMaterial {
+                base_color_texture: Some(textures.add(texture)),
+                // unlit: true,
                 ..Default::default()
-            })
-            .insert(Terrain);
+            }),
+            ..Default::default()
+        });
+
+        builder.insert(Terrain);
+        if config.wireframe {
+            builder.insert(Wireframe);
+        }
     }
 }
 
