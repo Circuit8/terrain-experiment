@@ -38,30 +38,6 @@ fn main() -> Result<(), Report> {
         .add_system(increase_shaders_time.system())
         .add_system(terrain::rebuild_on_change.system())
         .run();
-
-    // App::build()
-    //     .insert_resource(WindowDescriptor {
-    //         title: "Josh's World".to_string(),
-    //         width: 2000.,
-    //         height: 1200.,
-    //         vsync: false,
-    //         ..Default::default()
-    //     })
-    //     .insert_resource(Msaa { samples: 4 })
-    //     .insert_resource(MovementSettings {
-    //         sensitivity: 0.00010, // default: 0.00012
-    //         speed: 40.0,          // default: 12.0
-    //     })
-    //     .add_plugins(DefaultPlugins)
-    //     .add_plugin(InspectorPlugin::<Config>::new())
-    //     .add_plugin(InspectorPlugin::<terrain::Config>::new())
-    //     .add_plugin(PlayerPlugin)
-    //     .add_plugin(FrameTimeDiagnosticsPlugin::default())
-    //     .add_plugin(LogDiagnosticsPlugin::default())
-    //     .add_startup_system(setup.system())
-    //     // .add_system(terrain::rebuild_on_change.system())
-    //     .add_system(increase_shaders_time.system())
-    //     .run();
     Ok(())
 }
 
