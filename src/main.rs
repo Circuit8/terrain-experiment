@@ -44,10 +44,10 @@ fn main() -> Result<(), Report> {
         .add_startup_system(setup.system())
         .add_startup_system(terrain::setup.system())
         .add_system(increase_shaders_time.system())
-        // .add_system(terrain::rebuild_on_change.system())
+        .add_system(terrain::rebuild_on_change.system())
         .add_system(terrain::endless::compute_chunk_visibility.system())
-        .add_system(terrain::endless::start_generate_chunk_tasks.system())
-        .add_system(terrain::endless::handle_generate_chunk_tasks.system())
+        .add_system(terrain::endless::generate_chunks.system())
+        .add_system(terrain::endless::insert_chunks.system())
         .run();
     Ok(())
 }

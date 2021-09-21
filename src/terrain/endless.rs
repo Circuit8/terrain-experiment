@@ -1,23 +1,29 @@
 use bevy::{
     math::{Vec3, Vec3Swizzles},
     prelude::*,
+    render::wireframe::Wireframe,
     tasks::{AsyncComputeTaskPool, Task},
 };
 use bevy_flycam::FlyCam;
 use futures_lite::future;
+use noise::{
+    utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
+    Fbm, MultiFractal, Seedable,
+};
 use std::collections::HashSet;
 
-use super::{Config, MAP_CHUNK_SIZE};
+use super::{mesh, texture, Config, MAP_CHUNK_SIZE};
 
 const CHUNK_SIZE: u32 = MAP_CHUNK_SIZE - 1;
 
 #[derive(Debug)]
-pub struct ChunkCoordsSeen(HashSet<ChunkCoords>);
+pub struct ChunkCoordsSeen(pub HashSet<ChunkCoords>);
 
 pub fn setup(mut commands: Commands) {
     commands.insert_resource(ChunkCoordsSeen(HashSet::new()));
 }
 
+// Computes if chunks should be visible based on the distance between the edge of the chunk and the player
 pub fn compute_chunk_visibility(
     config: Res<Config>,
     mut chunks_query: Query<(&Chunk, &mut Visible)>,
@@ -38,7 +44,8 @@ pub fn compute_chunk_visibility(
     }
 }
 
-pub fn start_generate_chunk_tasks(
+// Starts async chunk generation tasks for chunks within range that dont yet exist
+pub fn generate_chunks(
     mut commands: Commands,
     player_query: Query<(&FlyCam, &Transform)>,
     config: Res<Config>,
@@ -52,22 +59,18 @@ pub fn start_generate_chunk_tasks(
     let chunk_range = (-(chunks_in_view_distance as i32))..chunks_in_view_distance as i32;
     for y_offset in chunk_range.clone() {
         for x_offset in chunk_range.clone() {
-            let viewed_chunk_coord = ChunkCoords {
+            let viewed_chunk_coords = ChunkCoords {
                 x: viewer_chunk_coords.x + x_offset,
                 y: viewer_chunk_coords.y + y_offset,
             };
 
-            if !chunk_coords_seen.0.contains(&viewed_chunk_coord) {
-                chunk_coords_seen.0.insert(viewed_chunk_coord);
+            if !chunk_coords_seen.0.contains(&viewed_chunk_coords) {
+                chunk_coords_seen.0.insert(viewed_chunk_coords);
 
-                let task = task_pool.spawn(async move {
-                    // This will return the mesh texture and height map eventually
-                    // Just the transform for now to test
-                    Transform {
-                        translation: viewed_chunk_coord.to_position(),
-                        ..Default::default()
-                    }
-                });
+                let config = config.clone();
+
+                let task = task_pool
+                    .spawn(async move { TerrainChunkData::generate(config, viewed_chunk_coords) });
 
                 commands.spawn().insert(task);
             }
@@ -75,30 +78,37 @@ pub fn start_generate_chunk_tasks(
     }
 }
 
-pub fn handle_generate_chunk_tasks(
+// This system polls the chunk generation tasks and when one is complete it adds it to the world
+pub fn insert_chunks(
     mut commands: Commands,
-    mut transform_tasks: Query<(Entity, &mut Task<Transform>)>,
+    mut generate_chunk_data_tasks: Query<(Entity, &mut Task<TerrainChunkData>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut textures: ResMut<Assets<Texture>>,
+    config: Res<Config>,
 ) {
-    for (entity, mut task) in transform_tasks.iter_mut() {
-        if let Some(transform) = future::block_on(future::poll_once(&mut *task)) {
-            let chunk_coords = ChunkCoords::from_position(&transform.translation);
-
-            commands
-                .spawn_bundle(PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Plane {
-                        size: CHUNK_SIZE as f32,
-                    })),
-                    material: materials.add(Color::rgb(1.0, 0.3, 0.3).into()),
-                    transform,
+    for (entity, mut task) in generate_chunk_data_tasks.iter_mut() {
+        if let Some(terrain_chunk_data) = future::block_on(future::poll_once(&mut *task)) {
+            let mut builder = commands.spawn_bundle(PbrBundle {
+                mesh: meshes.add(terrain_chunk_data.mesh),
+                material: materials.add(StandardMaterial {
+                    base_color_texture: Some(textures.add(terrain_chunk_data.texture)),
+                    // unlit: true,
                     ..Default::default()
-                })
-                .insert(Chunk {
-                    coords: chunk_coords,
-                });
+                }),
+                transform: terrain_chunk_data.transform,
+                ..Default::default()
+            });
 
-            commands.entity(entity).remove::<Task<Transform>>();
+            builder.insert(Chunk {
+                coords: terrain_chunk_data.coords,
+            });
+
+            if config.wireframe {
+                builder.insert(Wireframe);
+            }
+
+            commands.entity(entity).remove::<Task<TerrainChunkData>>();
         }
     }
 }
@@ -129,4 +139,47 @@ impl ChunkCoords {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Chunk {
     coords: ChunkCoords,
+}
+
+#[derive(Debug)]
+pub struct TerrainChunkData {
+    texture: Texture,
+    transform: Transform,
+    mesh: Mesh,
+    coords: ChunkCoords,
+}
+
+impl TerrainChunkData {
+    pub fn generate(config: Config, coords: ChunkCoords) -> TerrainChunkData {
+        let noise_map = generate_noise_map(&config);
+        let texture = texture::generate(&noise_map);
+        let mut terrain_mesh_generator =
+            mesh::Generator::new(noise_map, config.height_scale, config.simplification_level);
+        let mesh = terrain_mesh_generator.generate();
+
+        let transform = Transform {
+            translation: coords.to_position(),
+            ..Default::default()
+        };
+
+        TerrainChunkData {
+            transform,
+            texture,
+            mesh,
+            coords,
+        }
+    }
+}
+
+pub fn generate_noise_map(config: &Config) -> NoiseMap {
+    let fbm = Fbm::new()
+        .set_seed(config.seed)
+        .set_lacunarity(config.lacunarity)
+        .set_persistence(config.persistance)
+        .set_octaves(config.octaves);
+    let builder = PlaneMapBuilder::new(&fbm)
+        .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
+        .set_x_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale)
+        .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
+    builder.build()
 }

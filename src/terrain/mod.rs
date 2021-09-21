@@ -1,15 +1,9 @@
 use bevy;
-use bevy::render::wireframe::Wireframe;
 use bevy::{
     ecs::system::{Res, ResMut},
     prelude::*,
-    render::mesh::Mesh,
 };
 use bevy_inspector_egui::Inspectable;
-use noise::{
-    utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
-    Fbm, MultiFractal, Seedable,
-};
 
 pub mod endless;
 pub mod mesh;
@@ -21,7 +15,7 @@ pub fn setup(commands: Commands) {
     endless::setup(commands);
 }
 
-#[derive(Inspectable)]
+#[derive(Inspectable, Clone)]
 pub struct Config {
     #[inspectable(min = 0.0001)]
     noise_scale: f64,
@@ -58,55 +52,18 @@ impl Default for Config {
     }
 }
 
-pub struct Terrain;
-
 // Rebuild the terrain if it changes
 pub fn rebuild_on_change(
     mut commands: Commands,
     config: Res<Config>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    terrain_query: Query<(Entity, &Terrain)>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut textures: ResMut<Assets<Texture>>,
+    chunk_query: Query<(Entity, &endless::Chunk)>,
+    mut chunk_coords_seen: ResMut<endless::ChunkCoordsSeen>,
 ) {
     if config.is_changed() {
-        // Destroy all the previous terrain entities like the water, ground, sun etc (we'll recreate them all)
-        for (entity, _) in terrain_query.iter() {
+        chunk_coords_seen.0.clear();
+        // Destroy all the previous terrain entities
+        for (entity, _) in chunk_query.iter() {
             commands.entity(entity).despawn()
         }
-
-        let noise_map = generate_noise_map(&config);
-        let texture = texture::generate(&noise_map);
-        let mut terrain_mesh_generator =
-            mesh::Generator::new(noise_map, config.height_scale, config.simplification_level);
-        let mesh = terrain_mesh_generator.generate();
-
-        let mut builder = commands.spawn_bundle(PbrBundle {
-            mesh: meshes.add(mesh),
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(textures.add(texture)),
-                // unlit: true,
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        builder.insert(Terrain);
-        if config.wireframe {
-            builder.insert(Wireframe);
-        }
     }
-}
-
-pub fn generate_noise_map(config: &Config) -> NoiseMap {
-    let fbm = Fbm::new()
-        .set_seed(config.seed)
-        .set_lacunarity(config.lacunarity)
-        .set_persistence(config.persistance)
-        .set_octaves(config.octaves);
-    let builder = PlaneMapBuilder::new(&fbm)
-        .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
-        .set_x_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale)
-        .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
-    builder.build()
 }
