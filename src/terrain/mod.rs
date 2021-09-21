@@ -10,10 +10,16 @@ use noise::{
     utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
     Fbm, MultiFractal, Seedable,
 };
-mod mesh;
-mod texture;
 
-pub const MAP_CHUNK_SIZE: usize = 481;
+pub mod endless;
+pub mod mesh;
+pub mod texture;
+
+pub const MAP_CHUNK_SIZE: u32 = 241;
+
+pub fn setup(commands: Commands) {
+    endless::setup(commands);
+}
 
 #[derive(Inspectable)]
 pub struct Config {
@@ -32,6 +38,8 @@ pub struct Config {
     #[inspectable(min = 0, max = 6)]
     simplification_level: u32,
     wireframe: bool,
+    #[inspectable(min = MAP_CHUNK_SIZE)]
+    max_view_distance: u32,
 }
 
 impl Default for Config {
@@ -45,6 +53,7 @@ impl Default for Config {
             persistance: 0.5,
             simplification_level: 0,
             wireframe: false,
+            max_view_distance: MAP_CHUNK_SIZE * 2,
         }
     }
 }
@@ -96,7 +105,7 @@ pub fn generate_noise_map(config: &Config) -> NoiseMap {
         .set_persistence(config.persistance)
         .set_octaves(config.octaves);
     let builder = PlaneMapBuilder::new(&fbm)
-        .set_size(MAP_CHUNK_SIZE, MAP_CHUNK_SIZE)
+        .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
         .set_x_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale)
         .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
     builder.build()

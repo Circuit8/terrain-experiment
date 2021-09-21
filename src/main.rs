@@ -43,8 +43,10 @@ fn main() -> Result<(), Report> {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(WireframePlugin)
         .add_startup_system(setup.system())
+        .add_startup_system(terrain::setup.system())
         .add_system(increase_shaders_time.system())
         .add_system(terrain::rebuild_on_change.system())
+        // .add_system(terrain::endless::update.system())
         .run();
     Ok(())
 }
