@@ -1,4 +1,5 @@
 use bevy;
+use bevy::pbr::AmbientLight;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
@@ -6,7 +7,7 @@ use bevy::{
     render::renderer::RenderResources,
 };
 use bevy_flycam::{MovementSettings, PlayerPlugin};
-use bevy_inspector_egui::InspectorPlugin;
+use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
 use color_eyre::Report;
 
 mod terrain;
@@ -19,25 +20,23 @@ fn main() -> Result<(), Report> {
             title: "Josh's World".to_string(),
             width: 2000.,
             height: 1200.,
-            vsync: false,
+            vsync: true,
             ..Default::default()
         })
         .insert_resource(Msaa { samples: 4 })
-        .add_plugins(DefaultPlugins)
-        .add_plugin(PlayerPlugin)
-        .add_plugin(InspectorPlugin::<terrain::Config>::new())
         .insert_resource(MovementSettings {
             sensitivity: 0.00010, // default: 0.00012
             speed: 40.0,          // default: 12.0
         })
-        .insert_resource(ClearColor(Color::rgb_u8(142, 192, 255)))
+        .add_plugin(PlayerPlugin)
+        .add_plugins(DefaultPlugins)
+        .add_plugin(InspectorPlugin::<Config>::new())
+        .add_plugin(InspectorPlugin::<terrain::Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
-        .add_asset::<terrain::WaterMaterial>()
         .add_startup_system(setup.system())
-        .add_startup_system(terrain::setup.system())
-        .add_system(terrain::rebuild_on_change.system())
         .add_system(increase_shaders_time.system())
+        .add_system(terrain::rebuild_on_change.system())
         .run();
     Ok(())
 }
@@ -51,14 +50,23 @@ fn init() -> Result<(), Report> {
     Ok(())
 }
 
-#[derive(RenderResources, Default, TypeUuid)]
-#[uuid = "463e4b8a-d555-4fc2-ba9f-4c880063ba92"]
-struct TimeUniform {
-    value: f32,
+#[derive(Inspectable, Default)]
+struct Config {
+    clear_color: ResourceInspector<ClearColor>,
+    ambient_light: ResourceInspector<AmbientLight>,
 }
 
-fn setup() {
-    println!("General setup");
+fn setup(mut commands: Commands) {
+    commands.insert_resource(ClearColor(Color::rgb_u8(197, 227, 241)));
+    commands.insert_resource(AmbientLight {
+        color: Color::rgb_u8(255, 253, 246),
+        brightness: 0.28,
+    });
+    // Apparently ambient light editing doesnt work without a LightBundle?
+    commands.spawn_bundle(LightBundle {
+        transform: Transform::from_xyz(0.0, 400.0, 0.0),
+        ..Default::default()
+    });
 }
 
 /// In this system we query for the `TimeComponent` and global `Time` resource, and set
@@ -68,4 +76,10 @@ fn increase_shaders_time(time: Res<Time>, mut query: Query<&mut TimeUniform>) {
     for mut time_uniform in query.iter_mut() {
         time_uniform.value = time.seconds_since_startup() as f32;
     }
+}
+
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "463e4b8a-d555-4fc2-ba9f-4c880063ba92"]
+struct TimeUniform {
+    value: f32,
 }
