@@ -1,12 +1,14 @@
 use bevy::{
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    core::FixedTimestep,
+    diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    log::info,
     pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
     render::{renderer::RenderResources, wireframe::WireframePlugin},
     wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
-use bevy_flycam::{MovementSettings, PlayerPlugin};
+use bevy_flycam::{FlyCam, MovementSettings, PlayerPlugin};
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
 use color_eyre::Report;
 
@@ -40,11 +42,20 @@ fn main() -> Result<(), Report> {
         .add_plugin(InspectorPlugin::<Config>::new())
         .add_plugin(InspectorPlugin::<terrain::Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(EntityCountDiagnosticsPlugin::default())
+        // .add_plugin(WgpuResourceDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(WireframePlugin)
         .add_startup_system(setup.system())
         .add_startup_system(terrain::endless::setup.system())
         .add_system(increase_shaders_time.system())
+        .add_stage_after(
+            CoreStage::Update,
+            SlowUpdateStage,
+            SystemStage::parallel()
+                .with_run_criteria(FixedTimestep::step(2.0))
+                .with_system(debug_player_position.system()),
+        )
         .add_system(
             terrain::endless::trigger_update
                 .system()
@@ -118,8 +129,17 @@ fn increase_shaders_time(time: Res<Time>, mut query: Query<&mut TimeUniform>) {
     }
 }
 
+fn debug_player_position(query: Query<&Transform, With<FlyCam>>) {
+    for transform in query.iter() {
+        info!("Player position: {:?}", transform.translation);
+    }
+}
+
 #[derive(RenderResources, Default, TypeUuid)]
 #[uuid = "463e4b8a-d555-4fc2-ba9f-4c880063ba92"]
 struct TimeUniform {
     value: f32,
 }
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
+struct SlowUpdateStage;

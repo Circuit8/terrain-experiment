@@ -48,7 +48,7 @@ pub fn initialize_chunks(
         return;
     }
 
-    println!("Initializing chunks");
+    info!("Initializing chunks");
 
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     let viewer_chunk_coords = ChunkCoords::from_position(&viewer_position);
@@ -197,7 +197,7 @@ pub fn compute_chunk_visibility(
         return;
     }
 
-    println!("Computing visibility");
+    info!("Computing Visibility");
 
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
 
