@@ -148,7 +148,11 @@ pub fn insert_chunks(
                     ..Default::default()
                 }),
                 transform: Transform {
-                    translation: Vec3::new(position.x, 0.0, position.y),
+                    translation: Vec3::new(
+                        position.x - CHUNK_SIZE as f32 / 2.0,
+                        0.0,
+                        position.y - CHUNK_SIZE as f32 / 2.0,
+                    ),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -175,7 +179,8 @@ pub fn rebuild_on_change(
     mut events: EventWriter<StartChunkUpdateEvent>,
 ) {
     if config.is_changed() {
-        println!("Config has changed, going to despawn");
+        info!("Config has changed, going to despawn");
+
         // Destroy all the previous terrain entities
         for (entity, _) in chunk_query.iter() {
             commands.entity(entity).despawn_recursive()
