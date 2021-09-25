@@ -1,9 +1,7 @@
 use bevy;
-use bevy::{
-    ecs::system::{Res, ResMut},
-    prelude::*,
-};
+use bevy::{ecs::system::Res, prelude::*};
 use bevy_inspector_egui::Inspectable;
+use derive_more::{Add, Deref, From, Into, Mul};
 
 pub mod endless;
 pub mod mesh;
@@ -11,11 +9,7 @@ pub mod texture;
 
 pub const MAP_CHUNK_SIZE: u32 = 241;
 
-pub fn setup(commands: Commands) {
-    endless::setup(commands);
-}
-
-#[derive(Inspectable, Clone)]
+#[derive(Inspectable, Clone, Debug)]
 pub struct Config {
     #[inspectable(min = 0.0001)]
     noise_scale: f64,
@@ -29,11 +23,12 @@ pub struct Config {
     octaves: usize,
     #[inspectable(min = 1.0)]
     height_scale: f64,
-    #[inspectable(min = 0, max = 6)]
-    simplification_level: u32,
     wireframe: bool,
-    #[inspectable(min = MAP_CHUNK_SIZE)]
-    max_view_distance: u32,
+    #[inspectable(min = MAP_CHUNK_SIZE as f32)]
+    max_view_distance: f32,
+    low_simplification_threshold: SimplificationThreshold,
+    medium_simplification_threshold: SimplificationThreshold,
+    high_simplification_threshold: SimplificationThreshold,
 }
 
 impl Default for Config {
@@ -45,25 +40,41 @@ impl Default for Config {
             octaves: 4,
             lacunarity: 2.0,
             persistance: 0.5,
-            simplification_level: 0,
             wireframe: false,
-            max_view_distance: MAP_CHUNK_SIZE * 2,
+            low_simplification_threshold: SimplificationThreshold {
+                max_distance: MAP_CHUNK_SIZE as f32,
+                level: SimplificationLevel(1),
+            },
+            medium_simplification_threshold: SimplificationThreshold {
+                max_distance: MAP_CHUNK_SIZE as f32 * 2.,
+                level: SimplificationLevel(2),
+            },
+            high_simplification_threshold: SimplificationThreshold {
+                max_distance: MAP_CHUNK_SIZE as f32 * 3.,
+                level: SimplificationLevel(4),
+            },
+            max_view_distance: MAP_CHUNK_SIZE as f32 * 4.,
         }
     }
 }
 
-// Rebuild the terrain if it changes
-pub fn rebuild_on_change(
-    mut commands: Commands,
-    config: Res<Config>,
-    chunk_query: Query<(Entity, &endless::Chunk)>,
-    mut chunk_coords_seen: ResMut<endless::ChunkCoordsSeen>,
-) {
-    if config.is_changed() {
-        chunk_coords_seen.0.clear();
-        // Destroy all the previous terrain entities
-        for (entity, _) in chunk_query.iter() {
-            commands.entity(entity).despawn()
-        }
+#[derive(Inspectable, Clone, Copy, Debug)]
+struct SimplificationThreshold {
+    max_distance: f32,
+    level: SimplificationLevel,
+}
+
+#[derive(
+    Inspectable, PartialEq, From, Add, Mul, Into, Deref, Clone, Copy, Debug, Eq, Hash, Default,
+)]
+pub struct SimplificationLevel(#[inspectable(min = 1, max = 6)] u32);
+
+impl SimplificationLevel {
+    pub fn min() -> Self {
+        SimplificationLevel(1)
+    }
+
+    pub fn max() -> Self {
+        SimplificationLevel(6)
     }
 }

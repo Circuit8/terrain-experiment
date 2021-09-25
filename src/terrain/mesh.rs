@@ -7,10 +7,12 @@ use bevy::{
 };
 use noise::utils::NoiseMap;
 
+use super::SimplificationLevel;
+
 pub struct Generator {
     pub height_map: NoiseMap,
     pub height_scale: f64,
-    pub simplification_level: u32,
+    pub simplification_level: SimplificationLevel,
     pub vertices: Vec<[f32; 3]>,
     pub triangles: Vec<u32>,
     pub uvs: Vec<[f32; 2]>,
@@ -19,7 +21,11 @@ pub struct Generator {
 }
 
 impl Generator {
-    pub fn new(height_map: NoiseMap, height_scale: f64, simplification_level: u32) -> Generator {
+    pub fn new(
+        height_map: NoiseMap,
+        height_scale: f64,
+        simplification_level: SimplificationLevel,
+    ) -> Generator {
         Generator {
             height_map,
             height_scale,
@@ -43,10 +49,10 @@ impl Generator {
         self.triangles = vec![0; (map_width - 1) * (map_height - 1) * 6];
         self.triangles_index = 0;
 
-        let mesh_simplification_increment = if self.simplification_level == 0 {
+        let mesh_simplification_increment = if self.simplification_level == SimplificationLevel(0) {
             1
         } else {
-            (self.simplification_level * 2) as usize
+            (self.simplification_level.0 * 2) as usize
         };
         let vertices_per_line = (map_width - 1) / mesh_simplification_increment + 1;
 

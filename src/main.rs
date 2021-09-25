@@ -42,12 +42,33 @@ fn main() -> Result<(), Report> {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(WireframePlugin)
         .add_startup_system(setup.system())
-        .add_startup_system(terrain::setup.system())
+        .add_startup_system(terrain::endless::setup.system())
         .add_system(increase_shaders_time.system())
-        .add_system(terrain::rebuild_on_change.system())
-        .add_system(terrain::endless::compute_chunk_visibility.system())
-        .add_system(terrain::endless::generate_chunks.system())
-        .add_system(terrain::endless::insert_chunks.system())
+        .add_system(
+            terrain::endless::initialize_chunks
+                .system()
+                .before("terrain::endless::compute_chunk_visibility"),
+        )
+        .add_system(
+            terrain::endless::process_chunks
+                .system()
+                .before("terrain::endless::compute_chunk_visibility"),
+        )
+        .add_system(
+            terrain::endless::insert_chunks
+                .system()
+                .before("terrain::endless::compute_chunk_visibility"),
+        )
+        .add_system(
+            terrain::endless::compute_chunk_visibility
+                .system()
+                .label("terrain::endless::compute_chunk_visibility"),
+        )
+        .add_system(
+            terrain::endless::rebuild_on_change
+                .system()
+                .after("terrain::endless::compute_chunk_visibility"),
+        )
         .run();
     Ok(())
 }

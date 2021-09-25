@@ -1,3 +1,4 @@
+use super::{mesh, texture, Config, SimplificationLevel, MAP_CHUNK_SIZE};
 use bevy::{
     math::{Vec3, Vec3Swizzles},
     prelude::*,
@@ -5,170 +6,210 @@ use bevy::{
     tasks::{AsyncComputeTaskPool, Task},
 };
 use bevy_flycam::FlyCam;
+use derive_more::{Deref, DerefMut};
 use futures_lite::future;
 use noise::{
     utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
     Fbm, MultiFractal, Seedable,
 };
-use std::collections::HashSet;
-
-use super::{mesh, texture, Config, MAP_CHUNK_SIZE};
+use std::collections::HashMap;
 
 const CHUNK_SIZE: u32 = MAP_CHUNK_SIZE - 1;
 
-#[derive(Debug)]
-pub struct ChunkCoordsSeen(pub HashSet<ChunkCoords>);
+// Acts as a cache for the chunks or were constantly looping through all chunks
+#[derive(Deref, DerefMut, Clone, Debug, Default)]
+pub struct SeenChunks(pub HashMap<ChunkCoords, (SimplificationLevel, Entity)>);
 
 pub fn setup(mut commands: Commands) {
-    commands.insert_resource(ChunkCoordsSeen(HashSet::new()));
+    commands.insert_resource(SeenChunks::default());
 }
 
 // Computes if chunks should be visible based on the distance between the edge of the chunk and the player
 pub fn compute_chunk_visibility(
     config: Res<Config>,
-    mut chunks_query: Query<(&Chunk, &mut Visible)>,
+    mut chunks_query: Query<(&mut Visible, &Chunk)>,
     player_query: Query<(&FlyCam, &Transform)>,
 ) {
-    let viewer_position = player_query.iter().nth(0).unwrap().1.translation;
+    let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
 
-    // Set the chunks visible based on if they are within range
-    for (chunk, mut visible) in chunks_query.iter_mut() {
-        let distance_from_viewer = chunk
-            .coords
-            .to_position()
-            .xz()
-            .distance_squared(viewer_position.xz())
-            .sqrt();
+    for (mut visible, chunk) in chunks_query.iter_mut() {
+        let distance_from_viewer = chunk.coords.to_position().distance(viewer_position);
 
-        visible.is_visible = distance_from_viewer <= config.max_view_distance as f32;
+        if distance_from_viewer > config.max_view_distance as f32 {
+            visible.is_visible = false;
+        } else {
+            visible.is_visible = true;
+        }
     }
 }
 
-// Starts async chunk generation tasks for chunks within range that dont yet exist
-pub fn generate_chunks(
+// Creates / updates chunk entities with the correct simplification level and coordinates
+pub fn initialize_chunks(
     mut commands: Commands,
-    player_query: Query<(&FlyCam, &Transform)>,
     config: Res<Config>,
-    mut chunk_coords_seen: ResMut<ChunkCoordsSeen>,
-    task_pool: ResMut<AsyncComputeTaskPool>,
+    mut seen_chunks: ResMut<SeenChunks>,
+    player_query: Query<(&FlyCam, &Transform)>,
 ) {
-    let viewer_position = player_query.iter().nth(0).unwrap().1.translation;
+    let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     let viewer_chunk_coords = ChunkCoords::from_position(&viewer_position);
 
-    let chunks_in_view_distance = config.max_view_distance / CHUNK_SIZE;
+    let chunks_in_view_distance = config.max_view_distance / CHUNK_SIZE as f32;
     let chunk_range = (-(chunks_in_view_distance as i32))..chunks_in_view_distance as i32;
     for y_offset in chunk_range.clone() {
         for x_offset in chunk_range.clone() {
-            let viewed_chunk_coords = ChunkCoords {
+            let chunk_coords = ChunkCoords {
                 x: viewer_chunk_coords.x + x_offset,
                 y: viewer_chunk_coords.y + y_offset,
             };
 
-            if !chunk_coords_seen.0.contains(&viewed_chunk_coords) {
-                chunk_coords_seen.0.insert(viewed_chunk_coords);
+            let distance_from_viewer = chunk_coords.to_position().distance(viewer_position);
 
-                let config = config.clone();
+            let simplification_level = if distance_from_viewer
+                < config.low_simplification_threshold.max_distance
+            {
+                config.low_simplification_threshold.level
+            } else if distance_from_viewer < config.medium_simplification_threshold.max_distance {
+                config.medium_simplification_threshold.level
+            } else if distance_from_viewer < config.high_simplification_threshold.max_distance {
+                config.high_simplification_threshold.level
+            } else {
+                SimplificationLevel::max()
+            };
 
-                let task = task_pool
-                    .spawn(async move { TerrainChunkData::generate(config, viewed_chunk_coords) });
-
-                commands.spawn().insert(task);
+            if let Some((existing_simplification_level, entity)) =
+                seen_chunks.get_mut(&chunk_coords)
+            {
+                if *existing_simplification_level != simplification_level {
+                    *existing_simplification_level = simplification_level;
+                    commands.entity(*entity).insert(Processing).insert(Chunk {
+                        coords: chunk_coords,
+                        simplification_level,
+                    });
+                }
+            } else {
+                let entity = commands
+                    .spawn()
+                    .insert(Chunk {
+                        coords: chunk_coords,
+                        simplification_level,
+                    })
+                    .insert(Processing)
+                    .id();
+                seen_chunks.insert(chunk_coords, (simplification_level, entity));
             }
         }
     }
 }
 
-// This system polls the chunk generation tasks and when one is complete it adds it to the world
+// Computes the chunk mesh and texture
+pub fn process_chunks(
+    newly_processing_chunks_query: Query<(Entity, &Chunk), Added<Processing>>,
+    config: Res<Config>,
+    task_pool: ResMut<AsyncComputeTaskPool>,
+    mut commands: Commands,
+) {
+    for (entity, chunk) in newly_processing_chunks_query.iter() {
+        let config = config.clone();
+        let simplification_level = chunk.simplification_level.clone();
+        let entity = entity.clone();
+
+        let task = task_pool.spawn(async move {
+            let noise_map = generate_noise_map(&config);
+            let texture = texture::generate(&noise_map);
+            let mut terrain_mesh_generator =
+                mesh::Generator::new(noise_map, config.height_scale, simplification_level);
+            let mesh = terrain_mesh_generator.generate();
+
+            (texture, mesh)
+        });
+
+        commands.entity(entity).insert(task);
+    }
+}
+
+// This system polls the chunk generation tasks and when one is complete updates the entity with a proper mesh and texture
 pub fn insert_chunks(
     mut commands: Commands,
-    mut generate_chunk_data_tasks: Query<(Entity, &mut Task<TerrainChunkData>)>,
+    mut chunks_query: Query<(Entity, &Chunk, &mut Task<(Texture, Mesh)>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut textures: ResMut<Assets<Texture>>,
     config: Res<Config>,
 ) {
-    for (entity, mut task) in generate_chunk_data_tasks.iter_mut() {
-        if let Some(terrain_chunk_data) = future::block_on(future::poll_once(&mut *task)) {
-            let mut builder = commands.spawn_bundle(PbrBundle {
-                mesh: meshes.add(terrain_chunk_data.mesh),
+    for (entity, chunk, mut task) in chunks_query.iter_mut() {
+        if let Some((texture, mesh)) = future::block_on(future::poll_once(&mut *task)) {
+            let position = chunk.coords.to_position();
+
+            commands.entity(entity).insert_bundle(PbrBundle {
+                mesh: meshes.add(mesh),
                 material: materials.add(StandardMaterial {
-                    base_color_texture: Some(textures.add(terrain_chunk_data.texture)),
+                    base_color_texture: Some(textures.add(texture)),
                     // unlit: true,
                     ..Default::default()
                 }),
-                transform: terrain_chunk_data.transform,
+                transform: Transform {
+                    translation: Vec3::new(position.x, 0.0, position.y),
+                    ..Default::default()
+                },
                 ..Default::default()
             });
 
-            builder.insert(Chunk {
-                coords: terrain_chunk_data.coords,
-            });
-
             if config.wireframe {
-                builder.insert(Wireframe);
+                commands.entity(entity).insert(Wireframe);
             }
 
-            commands.entity(entity).remove::<Task<TerrainChunkData>>();
+            commands
+                .entity(entity)
+                .remove::<Processing>()
+                .remove::<Task<(Texture, Mesh)>>();
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// Rebuild the terrain if it changes
+pub fn rebuild_on_change(
+    mut commands: Commands,
+    config: Res<Config>,
+    chunk_query: Query<(Entity, &Chunk)>,
+    mut seen_chunks: ResMut<SeenChunks>,
+) {
+    if config.is_changed() {
+        println!("Config has changed, going to despawn");
+        // Destroy all the previous terrain entities
+        for (entity, _) in chunk_query.iter() {
+            commands.entity(entity).despawn_recursive()
+        }
+
+        seen_chunks.clear();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ChunkCoords {
     x: i32,
     y: i32,
 }
 
 impl ChunkCoords {
-    pub fn from_position(position: &Vec3) -> ChunkCoords {
+    pub fn from_position(position: &Vec2) -> ChunkCoords {
         ChunkCoords {
             x: position.x as i32 / CHUNK_SIZE as i32,
-            y: position.z as i32 / CHUNK_SIZE as i32,
+            y: position.y as i32 / CHUNK_SIZE as i32,
         }
     }
 
-    pub fn to_position(&self) -> Vec3 {
-        Vec3::new(
+    pub fn to_position(&self) -> Vec2 {
+        Vec2::new(
             (self.x * CHUNK_SIZE as i32) as f32,
-            0.0,
             (self.y * CHUNK_SIZE as i32) as f32,
         )
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default)]
 pub struct Chunk {
     coords: ChunkCoords,
-}
-
-#[derive(Debug)]
-pub struct TerrainChunkData {
-    texture: Texture,
-    transform: Transform,
-    mesh: Mesh,
-    coords: ChunkCoords,
-}
-
-impl TerrainChunkData {
-    pub fn generate(config: Config, coords: ChunkCoords) -> TerrainChunkData {
-        let noise_map = generate_noise_map(&config);
-        let texture = texture::generate(&noise_map);
-        let mut terrain_mesh_generator =
-            mesh::Generator::new(noise_map, config.height_scale, config.simplification_level);
-        let mesh = terrain_mesh_generator.generate();
-
-        let transform = Transform {
-            translation: coords.to_position(),
-            ..Default::default()
-        };
-
-        TerrainChunkData {
-            transform,
-            texture,
-            mesh,
-            coords,
-        }
-    }
+    simplification_level: SimplificationLevel,
 }
 
 pub fn generate_noise_map(config: &Config) -> NoiseMap {
@@ -183,3 +224,5 @@ pub fn generate_noise_map(config: &Config) -> NoiseMap {
         .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
     builder.build()
 }
+
+pub struct Processing;
