@@ -112,9 +112,10 @@ pub fn process_chunks(
         let config = config.clone();
         let simplification_level = chunk.simplification_level.clone();
         let entity = entity.clone();
+        let chunk_coords = chunk.coords.clone();
 
         let task = task_pool.spawn(async move {
-            let noise_map = generate_noise_map(&config);
+            let noise_map = generate_noise_map(&config, &chunk_coords);
             let texture = texture::generate(&noise_map);
             let mut terrain_mesh_generator =
                 mesh::Generator::new(noise_map, config.height_scale, simplification_level);
@@ -245,7 +246,7 @@ pub struct Chunk {
     simplification_level: SimplificationLevel,
 }
 
-pub fn generate_noise_map(config: &Config) -> NoiseMap {
+pub fn generate_noise_map(config: &Config, chunk_coords: &ChunkCoords) -> NoiseMap {
     let fbm = Fbm::new()
         .set_seed(config.seed)
         .set_lacunarity(config.lacunarity)
@@ -253,8 +254,14 @@ pub fn generate_noise_map(config: &Config) -> NoiseMap {
         .set_octaves(config.octaves);
     let builder = PlaneMapBuilder::new(&fbm)
         .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
-        .set_x_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale)
-        .set_y_bounds(-1.0 * config.noise_scale, 1.0 * config.noise_scale);
+        .set_x_bounds(
+            chunk_coords.x as f64 * config.noise_scale,
+            (chunk_coords.x as f64 + 1.0) * config.noise_scale,
+        )
+        .set_y_bounds(
+            chunk_coords.y as f64 * config.noise_scale,
+            (chunk_coords.y as f64 + 1.0) * config.noise_scale,
+        );
     builder.build()
 }
 
