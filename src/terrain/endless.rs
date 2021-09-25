@@ -15,31 +15,24 @@ use noise::{
 use std::collections::HashMap;
 
 const CHUNK_SIZE: u32 = MAP_CHUNK_SIZE - 1;
+const CHUNK_UPDATE_MOVEMENT_THRESHOLD: f32 = CHUNK_SIZE as f32 * 0.1;
 
-// Acts as a cache for the chunks or were constantly looping through all chunks
-#[derive(Deref, DerefMut, Clone, Debug, Default)]
-pub struct SeenChunks(pub HashMap<ChunkCoords, (SimplificationLevel, Entity)>);
-
-pub fn setup(mut commands: Commands) {
+pub fn setup(mut commands: Commands, mut events: EventWriter<StartChunkUpdateEvent>) {
     commands.insert_resource(SeenChunks::default());
+    commands.insert_resource(LastChunkUpdatePosition::default());
+    events.send(StartChunkUpdateEvent);
 }
 
-// Computes if chunks should be visible based on the distance between the edge of the chunk and the player
-pub fn compute_chunk_visibility(
-    config: Res<Config>,
-    mut chunks_query: Query<(&mut Visible, &Chunk)>,
+// Ensures the chunks are updated only if the player has moved a set distance since the last update
+pub fn trigger_update(
+    mut events: EventWriter<StartChunkUpdateEvent>,
+    mut last_chunk_update_position: ResMut<LastChunkUpdatePosition>,
     player_query: Query<(&FlyCam, &Transform)>,
 ) {
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
-
-    for (mut visible, chunk) in chunks_query.iter_mut() {
-        let distance_from_viewer = chunk.coords.to_position().distance(viewer_position);
-
-        if distance_from_viewer > config.max_view_distance as f32 {
-            visible.is_visible = false;
-        } else {
-            visible.is_visible = true;
-        }
+    if viewer_position.distance(last_chunk_update_position.0) > CHUNK_UPDATE_MOVEMENT_THRESHOLD {
+        last_chunk_update_position.0 = viewer_position;
+        events.send(StartChunkUpdateEvent);
     }
 }
 
@@ -48,8 +41,15 @@ pub fn initialize_chunks(
     mut commands: Commands,
     config: Res<Config>,
     mut seen_chunks: ResMut<SeenChunks>,
+    mut start_chunk_update_events: EventReader<StartChunkUpdateEvent>,
     player_query: Query<(&FlyCam, &Transform)>,
 ) {
+    if start_chunk_update_events.iter().next().is_none() {
+        return;
+    }
+
+    println!("Initializing chunks");
+
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     let viewer_chunk_coords = ChunkCoords::from_position(&viewer_position);
 
@@ -172,6 +172,7 @@ pub fn rebuild_on_change(
     config: Res<Config>,
     chunk_query: Query<(Entity, &Chunk)>,
     mut seen_chunks: ResMut<SeenChunks>,
+    mut events: EventWriter<StartChunkUpdateEvent>,
 ) {
     if config.is_changed() {
         println!("Config has changed, going to despawn");
@@ -181,6 +182,33 @@ pub fn rebuild_on_change(
         }
 
         seen_chunks.clear();
+        events.send(StartChunkUpdateEvent);
+    }
+}
+
+// Computes if chunks should be visible based on the distance between the edge of the chunk and the player
+pub fn compute_chunk_visibility(
+    config: Res<Config>,
+    mut chunks_query: Query<(&mut Visible, &Chunk)>,
+    player_query: Query<(&FlyCam, &Transform)>,
+    mut start_chunk_update_events: EventReader<StartChunkUpdateEvent>,
+) {
+    if start_chunk_update_events.iter().next().is_none() {
+        return;
+    }
+
+    println!("Computing visibility");
+
+    let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
+
+    for (mut visible, chunk) in chunks_query.iter_mut() {
+        let distance_from_viewer = chunk.coords.to_position().distance(viewer_position);
+
+        if distance_from_viewer > config.max_view_distance as f32 {
+            visible.is_visible = false;
+        } else {
+            visible.is_visible = true;
+        }
     }
 }
 
@@ -226,3 +254,14 @@ pub fn generate_noise_map(config: &Config) -> NoiseMap {
 }
 
 pub struct Processing;
+
+// Acts as a cache for the chunks or were constantly looping through all chunks
+#[derive(Deref, DerefMut, Clone, Debug, Default)]
+pub struct SeenChunks(pub HashMap<ChunkCoords, (SimplificationLevel, Entity)>);
+
+// Track how far the player has moved since the last time we updated the chunks, indicating to the systems when they need to run again
+#[derive(Deref, DerefMut, Clone, Debug, Default)]
+pub struct LastChunkUpdatePosition(pub Vec2);
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StartChunkUpdateEvent;

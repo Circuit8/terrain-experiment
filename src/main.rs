@@ -34,6 +34,7 @@ fn main() -> Result<(), Report> {
             },
             ..Default::default()
         })
+        .add_event::<terrain::endless::StartChunkUpdateEvent>()
         .add_plugin(PlayerPlugin)
         .add_plugins(DefaultPlugins)
         .add_plugin(InspectorPlugin::<Config>::new())
@@ -45,9 +46,15 @@ fn main() -> Result<(), Report> {
         .add_startup_system(terrain::endless::setup.system())
         .add_system(increase_shaders_time.system())
         .add_system(
+            terrain::endless::trigger_update
+                .system()
+                .label("terrain::endless::trigger_update"),
+        )
+        .add_system(
             terrain::endless::initialize_chunks
                 .system()
-                .before("terrain::endless::compute_chunk_visibility"),
+                .before("terrain::endless::compute_chunk_visibility")
+                .after("terrain::endless::trigger_update"),
         )
         .add_system(
             terrain::endless::process_chunks
@@ -62,7 +69,8 @@ fn main() -> Result<(), Report> {
         .add_system(
             terrain::endless::compute_chunk_visibility
                 .system()
-                .label("terrain::endless::compute_chunk_visibility"),
+                .label("terrain::endless::compute_chunk_visibility")
+                .after("terrain::endless::trigger_update"),
         )
         .add_system(
             terrain::endless::rebuild_on_change

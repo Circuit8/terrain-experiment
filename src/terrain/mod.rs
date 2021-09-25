@@ -1,5 +1,4 @@
 use bevy;
-use bevy::{ecs::system::Res, prelude::*};
 use bevy_inspector_egui::Inspectable;
 use derive_more::{Add, Deref, From, Into, Mul};
 
