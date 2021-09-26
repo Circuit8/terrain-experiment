@@ -5,12 +5,11 @@ use bevy::{
         pipeline::PrimitiveTopology,
     },
 };
-use noise::utils::NoiseMap;
 
-use super::SimplificationLevel;
+use super::{height_map::HeightMap, SimplificationLevel};
 
 pub struct Generator {
-    pub height_map: NoiseMap,
+    pub height_map: HeightMap,
     pub height_scale: f64,
     pub simplification_level: SimplificationLevel,
     pub vertices: Vec<[f32; 3]>,
@@ -22,7 +21,7 @@ pub struct Generator {
 
 impl Generator {
     pub fn new(
-        height_map: NoiseMap,
+        height_map: HeightMap,
         height_scale: f64,
         simplification_level: SimplificationLevel,
     ) -> Generator {

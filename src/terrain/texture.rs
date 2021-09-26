@@ -2,14 +2,15 @@ use bevy::{
     prelude::*,
     render::texture::{Extent3d, TextureDimension, TextureFormat},
 };
-use noise::utils::NoiseMap;
 
-pub fn generate(height_map: &NoiseMap) -> Texture {
+use super::height_map::HeightMap;
+
+pub fn generate(height_map: &HeightMap) -> Texture {
     let color_map = generate_color_map(height_map);
     return generate_texture(&color_map);
 }
 
-fn generate_color_map(height_map: &NoiseMap) -> ColorMap {
+fn generate_color_map(height_map: &HeightMap) -> ColorMap {
     let mut color_map = ColorMap::new(height_map.size());
     for y in 0..height_map.size().0 {
         for x in 0..height_map.size().1 {

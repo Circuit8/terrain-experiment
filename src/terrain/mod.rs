@@ -3,6 +3,7 @@ use bevy_inspector_egui::Inspectable;
 use derive_more::{Add, Deref, From, Into, Mul};
 
 pub mod endless;
+pub mod height_map;
 pub mod mesh;
 pub mod texture;
 

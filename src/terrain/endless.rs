@@ -1,4 +1,4 @@
-use super::{mesh, texture, Config, SimplificationLevel, MAP_CHUNK_SIZE};
+use super::{height_map::HeightMap, mesh, texture, Config, SimplificationLevel, MAP_CHUNK_SIZE};
 use bevy::{
     math::{Vec3, Vec3Swizzles},
     prelude::*,
@@ -8,10 +8,6 @@ use bevy::{
 use bevy_flycam::FlyCam;
 use derive_more::{Deref, DerefMut};
 use futures_lite::future;
-use noise::{
-    utils::{NoiseMap, NoiseMapBuilder, PlaneMapBuilder},
-    Fbm, MultiFractal, Seedable,
-};
 use std::collections::HashMap;
 
 const CHUNK_SIZE: u32 = MAP_CHUNK_SIZE - 1;
@@ -115,10 +111,10 @@ pub fn process_chunks(
         let chunk_coords = chunk.coords.clone();
 
         let task = task_pool.spawn(async move {
-            let noise_map = generate_noise_map(&config, &chunk_coords);
-            let texture = texture::generate(&noise_map);
+            let height_map = HeightMap::generate(&config, &chunk_coords);
+            let texture = texture::generate(&height_map);
             let mut terrain_mesh_generator =
-                mesh::Generator::new(noise_map, config.height_scale, simplification_level);
+                mesh::Generator::new(height_map, config.height_scale, simplification_level);
             let mesh = terrain_mesh_generator.generate();
 
             (texture, mesh)
@@ -220,8 +216,8 @@ pub fn compute_chunk_visibility(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ChunkCoords {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl ChunkCoords {
@@ -244,25 +240,6 @@ impl ChunkCoords {
 pub struct Chunk {
     coords: ChunkCoords,
     simplification_level: SimplificationLevel,
-}
-
-pub fn generate_noise_map(config: &Config, chunk_coords: &ChunkCoords) -> NoiseMap {
-    let fbm = Fbm::new()
-        .set_seed(config.seed)
-        .set_lacunarity(config.lacunarity)
-        .set_persistence(config.persistance)
-        .set_octaves(config.octaves);
-    let builder = PlaneMapBuilder::new(&fbm)
-        .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
-        .set_x_bounds(
-            chunk_coords.x as f64 * config.noise_scale,
-            (chunk_coords.x as f64 + 1.0) * config.noise_scale,
-        )
-        .set_y_bounds(
-            chunk_coords.y as f64 * config.noise_scale,
-            (chunk_coords.y as f64 + 1.0) * config.noise_scale,
-        );
-    builder.build()
 }
 
 pub struct Processing;
