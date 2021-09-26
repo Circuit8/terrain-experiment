@@ -11,8 +11,6 @@ const MAP_CHUNK_SIZE: u32 = 241;
 
 #[derive(Inspectable, Clone, Debug)]
 pub struct Config {
-    #[inspectable(min = 0.0001)]
-    noise_scale: f64,
     #[inspectable(min = 1)]
     seed: u32,
     #[inspectable(min = 0.0001)]
@@ -22,20 +20,23 @@ pub struct Config {
     #[inspectable(min = 1)]
     octaves: usize,
     #[inspectable(min = 1.0)]
-    height_scale: f64,
+    height_scale: f32,
     wireframe: bool,
     #[inspectable(min = MAP_CHUNK_SIZE as f32)]
     max_view_distance: f32,
     low_simplification_threshold: SimplificationThreshold,
     medium_simplification_threshold: SimplificationThreshold,
     high_simplification_threshold: SimplificationThreshold,
+    #[inspectable(min = 0.0, max = 1.0)]
+    material_roughness: f32,
+    #[inspectable(min = 0.0, max = 1.0)]
+    material_reflectance: f32,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             height_scale: 80.0,
-            noise_scale: 1.2,
             seed: 2,
             octaves: 4,
             lacunarity: 2.0,
@@ -54,6 +55,8 @@ impl Default for Config {
                 level: SimplificationLevel(4),
             },
             max_view_distance: MAP_CHUNK_SIZE as f32 * 4.,
+            material_roughness: 0.7,
+            material_reflectance: 0.2,
         }
     }
 }

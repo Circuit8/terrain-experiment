@@ -10,7 +10,7 @@ use super::{height_map::HeightMap, SimplificationLevel};
 
 pub struct Generator {
     pub height_map: HeightMap,
-    pub height_scale: f64,
+    pub height_scale: f32,
     pub simplification_level: SimplificationLevel,
     pub vertices: Vec<[f32; 3]>,
     pub triangles: Vec<u32>,
@@ -22,7 +22,7 @@ pub struct Generator {
 impl Generator {
     pub fn new(
         height_map: HeightMap,
-        height_scale: f64,
+        height_scale: f32,
         simplification_level: SimplificationLevel,
     ) -> Generator {
         Generator {
@@ -60,7 +60,7 @@ impl Generator {
         while y < map_height {
             let mut x = 0;
             while x < map_width {
-                let height = self.height_map.get_value(x, y) * self.height_scale;
+                let height = self.height_map.get_value(x, y) as f32 * self.height_scale;
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
                 self.uvs[vertex_index] =

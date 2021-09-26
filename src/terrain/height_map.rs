@@ -18,14 +18,8 @@ impl HeightMap {
             .set_octaves(config.octaves);
         let builder = PlaneMapBuilder::new(&fbm)
             .set_size(MAP_CHUNK_SIZE as usize, MAP_CHUNK_SIZE as usize)
-            .set_x_bounds(
-                chunk_coords.x as f64 * config.noise_scale,
-                (chunk_coords.x as f64 + 1.0) * config.noise_scale,
-            )
-            .set_y_bounds(
-                chunk_coords.y as f64 * config.noise_scale,
-                (chunk_coords.y as f64 + 1.0) * config.noise_scale,
-            );
+            .set_x_bounds(chunk_coords.x as f64, chunk_coords.x as f64 + 1.0)
+            .set_y_bounds(chunk_coords.y as f64, chunk_coords.y as f64 + 1.0);
 
         HeightMap(builder.build())
     }
