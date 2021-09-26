@@ -2114,21 +2114,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "joshs-world"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy-inspector-egui",
- "bevy_flycam",
- "color-eyre",
- "derive_more",
- "futures-lite",
- "image",
- "noise",
- "rand 0.8.3",
-]
-
-[[package]]
 name = "jpeg-decoder"
 version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3471,6 +3456,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "terrain-experiment"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_flycam",
+ "color-eyre",
+ "derive_more",
+ "futures-lite",
+ "image",
+ "noise",
+ "rand 0.8.3",
 ]
 
 [[package]]
