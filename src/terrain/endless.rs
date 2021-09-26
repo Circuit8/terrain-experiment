@@ -49,8 +49,12 @@ pub fn initialize_chunks(
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     let viewer_chunk_coords = ChunkCoords::from_position(&viewer_position);
 
-    let chunks_in_view_distance = config.max_view_distance / CHUNK_SIZE as f32;
-    let chunk_range = (-(chunks_in_view_distance as i32))..chunks_in_view_distance as i32;
+    let chunk_range = if config.endless {
+        let chunks_in_view_distance = config.max_view_distance / CHUNK_SIZE as f32;
+        (-(chunks_in_view_distance as i32))..chunks_in_view_distance as i32
+    } else {
+        0..1
+    };
     for y_offset in chunk_range.clone() {
         for x_offset in chunk_range.clone() {
             let chunk_coords = ChunkCoords {

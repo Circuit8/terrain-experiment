@@ -31,12 +31,13 @@ pub struct Config {
     material_roughness: f32,
     #[inspectable(min = 0.0, max = 1.0)]
     material_reflectance: f32,
+    endless: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            height_scale: 80.0,
+            height_scale: 60.0,
             seed: 2,
             octaves: 4,
             lacunarity: 2.0,
@@ -57,6 +58,7 @@ impl Default for Config {
             max_view_distance: MAP_CHUNK_SIZE as f32 * 4.,
             material_roughness: 0.7,
             material_reflectance: 0.2,
+            endless: true,
         }
     }
 }

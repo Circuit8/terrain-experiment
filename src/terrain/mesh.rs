@@ -38,8 +38,8 @@ impl Generator {
     }
 
     pub fn generate(&mut self) -> Mesh {
-        let map_width = self.height_map.size().0;
-        let map_height = self.height_map.size().1;
+        let map_width = self.height_map.len();
+        let map_height = self.height_map.len();
         let map_size = map_width * map_height;
 
         self.vertices = vec![[0., 0., 0.]; map_size];
@@ -60,7 +60,7 @@ impl Generator {
         while y < map_height {
             let mut x = 0;
             while x < map_width {
-                let height = self.height_map.get_value(x, y) as f32 * self.height_scale;
+                let height = self.height_map[y][x] * self.height_scale;
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
                 self.uvs[vertex_index] =
