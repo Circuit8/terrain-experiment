@@ -12,6 +12,8 @@ use bevy_flycam::{FlyCam, MovementSettings, PlayerPlugin};
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
 use color_eyre::Report;
 
+use crate::terrain::Terrain;
+
 mod terrain;
 
 fn main() -> Result<(), Report> {
@@ -36,18 +38,16 @@ fn main() -> Result<(), Report> {
             },
             ..Default::default()
         })
-        .add_event::<terrain::endless::StartChunkUpdateEvent>()
         .add_plugin(PlayerPlugin)
         .add_plugins(DefaultPlugins)
         .add_plugin(InspectorPlugin::<Config>::new())
-        .add_plugin(InspectorPlugin::<terrain::Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(EntityCountDiagnosticsPlugin::default())
         // .add_plugin(WgpuResourceDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(Terrain)
         .add_plugin(WireframePlugin)
         .add_startup_system(setup.system())
-        .add_startup_system(terrain::endless::setup.system())
         .add_system(increase_shaders_time.system())
         .add_stage_after(
             CoreStage::Update,
@@ -55,38 +55,6 @@ fn main() -> Result<(), Report> {
             SystemStage::parallel()
                 .with_run_criteria(FixedTimestep::step(2.0))
                 .with_system(debug_player_position.system()),
-        )
-        .add_system(
-            terrain::endless::trigger_update
-                .system()
-                .label("terrain::endless::trigger_update"),
-        )
-        .add_system(
-            terrain::endless::initialize_chunks
-                .system()
-                .before("terrain::endless::compute_chunk_visibility")
-                .after("terrain::endless::trigger_update"),
-        )
-        .add_system(
-            terrain::endless::process_chunks
-                .system()
-                .before("terrain::endless::compute_chunk_visibility"),
-        )
-        .add_system(
-            terrain::endless::insert_chunks
-                .system()
-                .before("terrain::endless::compute_chunk_visibility"),
-        )
-        .add_system(
-            terrain::endless::compute_chunk_visibility
-                .system()
-                .label("terrain::endless::compute_chunk_visibility")
-                .after("terrain::endless::trigger_update"),
-        )
-        .add_system(
-            terrain::endless::rebuild_on_change
-                .system()
-                .after("terrain::endless::compute_chunk_visibility"),
         )
         .run();
     Ok(())

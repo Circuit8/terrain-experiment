@@ -1,13 +1,13 @@
-use bevy;
-use bevy_inspector_egui::Inspectable;
+use bevy::{self, prelude::*};
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use derive_more::{Add, Deref, From, Into, Mul};
 
-pub mod endless;
-pub mod height_map;
-pub mod mesh;
-pub mod texture;
+mod endless;
+mod height_map;
+mod mesh;
+mod texture;
 
-pub const MAP_CHUNK_SIZE: u32 = 241;
+const MAP_CHUNK_SIZE: u32 = 241;
 
 #[derive(Inspectable, Clone, Debug)]
 pub struct Config {
@@ -76,5 +76,47 @@ impl SimplificationLevel {
 
     pub fn max() -> Self {
         SimplificationLevel(6)
+    }
+}
+
+pub struct Terrain;
+
+impl Plugin for Terrain {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_plugin(InspectorPlugin::<Config>::new())
+            .add_event::<endless::StartChunkUpdateEvent>()
+            .add_startup_system(endless::setup.system())
+            .add_system(
+                endless::trigger_update
+                    .system()
+                    .label("endless::trigger_update"),
+            )
+            .add_system(
+                endless::initialize_chunks
+                    .system()
+                    .before("endless::compute_chunk_visibility")
+                    .after("endless::trigger_update"),
+            )
+            .add_system(
+                endless::process_chunks
+                    .system()
+                    .before("endless::compute_chunk_visibility"),
+            )
+            .add_system(
+                endless::insert_chunks
+                    .system()
+                    .before("endless::compute_chunk_visibility"),
+            )
+            .add_system(
+                endless::compute_chunk_visibility
+                    .system()
+                    .label("endless::compute_chunk_visibility")
+                    .after("endless::trigger_update"),
+            )
+            .add_system(
+                endless::rebuild_on_change
+                    .system()
+                    .after("endless::compute_chunk_visibility"),
+            );
     }
 }
