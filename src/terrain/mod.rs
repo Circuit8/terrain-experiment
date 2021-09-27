@@ -47,18 +47,18 @@ impl Default for Config {
             scale: 1.0,
             wireframe: false,
             low_simplification_threshold: SimplificationThreshold {
-                max_distance: MAP_CHUNK_SIZE as f32,
+                max_distance: 700.,
                 level: SimplificationLevel(1),
             },
             medium_simplification_threshold: SimplificationThreshold {
-                max_distance: MAP_CHUNK_SIZE as f32 * 2.,
+                max_distance: 1000.,
                 level: SimplificationLevel(2),
             },
             high_simplification_threshold: SimplificationThreshold {
-                max_distance: MAP_CHUNK_SIZE as f32 * 3.,
+                max_distance: 1300.,
                 level: SimplificationLevel(4),
             },
-            max_view_distance: MAP_CHUNK_SIZE as f32 * 4.,
+            max_view_distance: 2500.,
             material_roughness: 0.7,
             material_reflectance: 0.2,
             endless: true,

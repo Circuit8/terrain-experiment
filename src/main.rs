@@ -5,10 +5,12 @@ use bevy::{
     pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
-    render::{renderer::RenderResources, wireframe::WireframePlugin},
+    render::{
+        camera::PerspectiveProjection, renderer::RenderResources, wireframe::WireframePlugin,
+    },
     wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
-use bevy_flycam::{FlyCam, MovementSettings, PlayerPlugin};
+use bevy_flycam::{FlyCam, MovementSettings, NoCameraPlayerPlugin};
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
 use color_eyre::Report;
 
@@ -38,7 +40,7 @@ fn main() -> Result<(), Report> {
             },
             ..Default::default()
         })
-        .add_plugin(PlayerPlugin)
+        .add_plugin(NoCameraPlayerPlugin)
         .add_plugins(DefaultPlugins)
         .add_plugin(InspectorPlugin::<Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
@@ -86,6 +88,17 @@ fn setup(mut commands: Commands) {
         transform: Transform::from_xyz(0.0, 400.0, 0.0),
         ..Default::default()
     });
+
+    commands
+        .spawn_bundle(PerspectiveCameraBundle {
+            transform: Transform::from_xyz(0.0, 160.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+            perspective_projection: PerspectiveProjection {
+                far: 3000.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .insert(FlyCam);
 }
 
 /// In this system we query for the `TimeComponent` and global `Time` resource, and set
