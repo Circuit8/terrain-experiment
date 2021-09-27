@@ -14,13 +14,15 @@ pub struct Config {
     #[inspectable(min = 1)]
     seed: u32,
     #[inspectable(min = 0.0001)]
-    lacunarity: f64, // increase for more hills closer together
+    lacunarity: f32, // increase for more hills closer together
     #[inspectable(min = 0.0001)]
-    persistance: f64,
+    persistence: f32,
     #[inspectable(min = 1)]
     octaves: usize,
     #[inspectable(min = 1.0)]
     height_scale: f32,
+    #[inspectable(min = 0.0001)]
+    scale: f32,
     wireframe: bool,
     #[inspectable(min = MAP_CHUNK_SIZE as f32)]
     max_view_distance: f32,
@@ -31,16 +33,18 @@ pub struct Config {
     material_roughness: f32,
     #[inspectable(min = 0.0, max = 1.0)]
     material_reflectance: f32,
+    endless: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            height_scale: 80.0,
+            height_scale: 100.0,
             seed: 2,
-            octaves: 4,
-            lacunarity: 2.0,
-            persistance: 0.5,
+            octaves: 6,
+            lacunarity: 0.6,
+            persistence: 0.5,
+            scale: 1.0,
             wireframe: false,
             low_simplification_threshold: SimplificationThreshold {
                 max_distance: MAP_CHUNK_SIZE as f32,
@@ -57,6 +61,7 @@ impl Default for Config {
             max_view_distance: MAP_CHUNK_SIZE as f32 * 4.,
             material_roughness: 0.7,
             material_reflectance: 0.2,
+            endless: true,
         }
     }
 }

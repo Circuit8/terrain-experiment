@@ -11,16 +11,16 @@ pub fn generate(height_map: &HeightMap) -> Texture {
 }
 
 fn generate_color_map(height_map: &HeightMap) -> ColorMap {
-    let mut color_map = ColorMap::new(height_map.size());
-    for y in 0..height_map.size().0 {
-        for x in 0..height_map.size().1 {
-            let height = height_map.get_value(x, y);
+    let mut color_map = ColorMap::new((height_map.len(), height_map.len()));
+    for y in 0..height_map.len() {
+        for x in 0..height_map.len() {
+            let height = height_map[y][x];
 
-            let color = if height < 0.0 {
+            let color = if height < 0.35 {
                 Color::rgb(0.0, 0.1, 0.8)
-            } else if height < 0.1 {
+            } else if height < 0.43 {
                 Color::rgb(0.9, 0.78, 0.01)
-            } else if height < 0.4 {
+            } else if height < 0.85 {
                 Color::rgb(0.01, 0.9, 0.05)
             } else {
                 Color::rgb(0.65, 0.65, 0.65)
