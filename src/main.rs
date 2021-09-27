@@ -79,7 +79,7 @@ fn setup(mut commands: Commands) {
     commands.insert_resource(ClearColor(Color::rgb_u8(197, 227, 241)));
     commands.insert_resource(AmbientLight {
         color: Color::rgb_u8(255, 253, 246),
-        brightness: 0.28,
+        brightness: 0.5,
     });
     // Apparently ambient light editing doesnt work without a LightBundle?
     commands.spawn_bundle(LightBundle {

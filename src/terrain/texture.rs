@@ -16,11 +16,11 @@ fn generate_color_map(height_map: &HeightMap) -> ColorMap {
         for x in 0..height_map.len() {
             let height = height_map[y][x];
 
-            let color = if height < 0.0 {
+            let color = if height < 0.35 {
                 Color::rgb(0.0, 0.1, 0.8)
-            } else if height < 0.1 {
+            } else if height < 0.43 {
                 Color::rgb(0.9, 0.78, 0.01)
-            } else if height < 0.4 {
+            } else if height < 0.85 {
                 Color::rgb(0.01, 0.9, 0.05)
             } else {
                 Color::rgb(0.65, 0.65, 0.65)
