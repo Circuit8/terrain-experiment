@@ -58,8 +58,8 @@ impl Default for Config {
                 max_distance: 1300.,
                 level: SimplificationLevel(4),
             },
-            max_view_distance: 2500.,
-            material_roughness: 0.7,
+            max_view_distance: 1800.,
+            material_roughness: 0.95,
             material_reflectance: 0.2,
             endless: true,
         }
@@ -90,7 +90,7 @@ impl SimplificationLevel {
 pub struct Terrain;
 
 impl Plugin for Terrain {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_plugin(InspectorPlugin::<Config>::new())
             .add_event::<endless::StartChunkUpdateEvent>()
             .add_startup_system(endless::setup.system())

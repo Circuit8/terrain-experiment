@@ -2,7 +2,6 @@ use bevy::{
     core::FixedTimestep,
     diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     log::info,
-    pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
     render::{
@@ -21,7 +20,7 @@ mod terrain;
 fn main() -> Result<(), Report> {
     init()?;
 
-    App::build()
+    App::new()
         .insert_resource(WindowDescriptor {
             title: "Josh's World".to_string(),
             width: 2000.,
@@ -74,20 +73,20 @@ fn init() -> Result<(), Report> {
 #[derive(Inspectable, Default)]
 struct Config {
     clear_color: ResourceInspector<ClearColor>,
-    ambient_light: ResourceInspector<AmbientLight>,
 }
+
+struct Sun;
 
 fn setup(mut commands: Commands) {
     commands.insert_resource(ClearColor(Color::rgb_u8(197, 227, 241)));
-    commands.insert_resource(AmbientLight {
-        color: Color::rgb_u8(255, 253, 246),
-        brightness: 0.5,
-    });
-    // Apparently ambient light editing doesnt work without a LightBundle?
-    commands.spawn_bundle(LightBundle {
-        transform: Transform::from_xyz(0.0, 400.0, 0.0),
-        ..Default::default()
-    });
+    commands
+        .spawn()
+        .insert(DirectionalLight::new(
+            Color::rgb_u8(255, 253, 246),
+            18000.0,
+            Vec3::new(0.0, -1.0, 0.0),
+        ))
+        .insert(Sun);
 
     commands
         .spawn_bundle(PerspectiveCameraBundle {

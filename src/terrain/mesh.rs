@@ -98,11 +98,11 @@ impl Generator {
         mesh.set_indices(Some(Indices::U32(self.triangles.clone())));
         mesh.set_attribute(
             Mesh::ATTRIBUTE_POSITION,
-            VertexAttributeValues::Float3(self.vertices.clone()),
+            VertexAttributeValues::Float32x3(self.vertices.clone()),
         );
         mesh.set_attribute(
             Mesh::ATTRIBUTE_UV_0,
-            VertexAttributeValues::Float2(self.uvs.clone()),
+            VertexAttributeValues::Float32x2(self.uvs.clone()),
         );
         mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals.clone());
 
