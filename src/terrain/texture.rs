@@ -3,29 +3,25 @@ use bevy::{
     render::texture::{Extent3d, TextureDimension, TextureFormat},
 };
 
-use super::height_map::HeightMap;
+use super::{height_map::HeightMap, Config};
 
-pub fn generate(height_map: &HeightMap) -> Texture {
-    let color_map = generate_color_map(height_map);
+pub fn generate(height_map: &HeightMap, config: &Config) -> Texture {
+    let color_map = generate_color_map(height_map, config);
     return generate_texture(&color_map);
 }
 
-fn generate_color_map(height_map: &HeightMap) -> ColorMap {
+fn generate_color_map(height_map: &HeightMap, config: &Config) -> ColorMap {
     let mut color_map = ColorMap::new((height_map.len(), height_map.len()));
     for y in 0..height_map.len() {
         for x in 0..height_map.len() {
             let height = height_map[y][x];
 
-            let color = if height < 0.35 {
-                Color::rgb(0.0, 0.1, 0.8)
-            } else if height < 0.43 {
-                Color::rgb(0.9, 0.78, 0.01)
-            } else if height < 0.85 {
-                Color::rgb(0.01, 0.9, 0.05)
-            } else {
-                Color::rgb(0.65, 0.65, 0.65)
-            };
-            color_map.colors.push(color);
+            for terrain in config.terrain_thresholds.iter() {
+                if height < terrain.max_height {
+                    color_map.colors.push(terrain.color);
+                    break;
+                }
+            }
         }
     }
     return color_map;

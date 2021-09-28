@@ -34,6 +34,7 @@ pub struct Config {
     #[inspectable(min = 0.0, max = 1.0)]
     material_reflectance: f32,
     endless: bool,
+    terrain_thresholds: [TerrainThreshold; 6],
 }
 
 impl Default for Config {
@@ -62,8 +63,41 @@ impl Default for Config {
             material_roughness: 0.95,
             material_reflectance: 0.2,
             endless: true,
+            terrain_thresholds: [
+                TerrainThreshold {
+                    max_height: 0.35,
+                    color: Color::rgb(0.0, 0.1, 0.8),
+                },
+                TerrainThreshold {
+                    max_height: 0.4,
+                    color: Color::rgb(0.9, 0.78, 0.01),
+                },
+                TerrainThreshold {
+                    max_height: 0.45,
+                    color: Color::hex("339D35").unwrap(),
+                },
+                TerrainThreshold {
+                    max_height: 0.7,
+                    color: Color::rgb(0.01, 0.9, 0.05),
+                },
+                TerrainThreshold {
+                    max_height: 0.85,
+                    color: Color::rgb_u8(72, 56, 56),
+                },
+                TerrainThreshold {
+                    max_height: 2.0,
+                    color: Color::rgb(1.0, 1.0, 1.0),
+                },
+            ],
         }
     }
+}
+
+#[derive(Inspectable, Clone, Copy, Debug)]
+struct TerrainThreshold {
+    #[inspectable(min = 0.0, max = 1.1)]
+    max_height: f32,
+    color: Color,
 }
 
 #[derive(Inspectable, Clone, Copy, Debug)]

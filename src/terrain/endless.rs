@@ -116,7 +116,7 @@ pub fn process_chunks(
 
         let task = task_pool.spawn(async move {
             let height_map = HeightMap::generate(&config, &chunk_coords);
-            let texture = texture::generate(&height_map);
+            let texture = texture::generate(&height_map, &config);
             let mut terrain_mesh_generator =
                 mesh::Generator::new(height_map, config.height_scale, simplification_level);
             let mesh = terrain_mesh_generator.generate();

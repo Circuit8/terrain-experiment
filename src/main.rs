@@ -78,12 +78,12 @@ struct Config {
 struct Sun;
 
 fn setup(mut commands: Commands) {
-    commands.insert_resource(ClearColor(Color::rgb_u8(197, 227, 241)));
+    commands.insert_resource(ClearColor(Color::rgb_u8(190, 246, 255)));
     commands
         .spawn()
         .insert(DirectionalLight::new(
-            Color::rgb_u8(255, 253, 246),
-            18000.0,
+            Color::rgb_u8(255, 255, 255),
+            20000.0,
             Vec3::new(0.0, -1.0, 0.0),
         ))
         .insert(Sun);
