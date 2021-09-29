@@ -83,7 +83,7 @@ fn setup(mut commands: Commands) {
         .spawn()
         .insert(DirectionalLight::new(
             Color::rgb_u8(255, 255, 255),
-            20000.0,
+            25000.0,
             Vec3::new(0.0, -1.0, 0.0),
         ))
         .insert(Sun);

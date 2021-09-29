@@ -60,8 +60,8 @@ impl Default for Config {
                 level: SimplificationLevel(4),
             },
             max_view_distance: 1800.,
-            material_roughness: 0.95,
-            material_reflectance: 0.2,
+            material_roughness: 0.98,
+            material_reflectance: 0.1,
             endless: true,
             terrain_thresholds: [
                 TerrainThreshold {
@@ -78,7 +78,7 @@ impl Default for Config {
                 },
                 TerrainThreshold {
                     max_height: 0.7,
-                    color: Color::rgb(0.01, 0.9, 0.05),
+                    color: Color::rgb_u8(61, 179, 72),
                 },
                 TerrainThreshold {
                     max_height: 0.85,
