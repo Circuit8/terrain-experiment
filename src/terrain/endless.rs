@@ -1,3 +1,5 @@
+use crate::Player;
+
 use super::{height_map::HeightMap, mesh, texture, Config, SimplificationLevel, MAP_CHUNK_SIZE};
 use bevy::{
     math::{Vec3, Vec3Swizzles},
@@ -5,7 +7,6 @@ use bevy::{
     render::wireframe::Wireframe,
     tasks::{AsyncComputeTaskPool, Task},
 };
-use bevy_flycam::FlyCam;
 use derive_more::{Deref, DerefMut};
 use futures_lite::future;
 use std::collections::HashMap;
@@ -23,7 +24,7 @@ pub fn setup(mut commands: Commands, mut events: EventWriter<StartChunkUpdateEve
 pub fn trigger_update(
     mut events: EventWriter<StartChunkUpdateEvent>,
     mut last_chunk_update_position: ResMut<LastChunkUpdatePosition>,
-    player_query: Query<(&FlyCam, &Transform)>,
+    player_query: Query<(&Player, &Transform)>,
 ) {
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     if viewer_position.distance(last_chunk_update_position.0) > CHUNK_UPDATE_MOVEMENT_THRESHOLD {
@@ -38,7 +39,7 @@ pub fn initialize_chunks(
     config: Res<Config>,
     mut seen_chunks: ResMut<SeenChunks>,
     mut start_chunk_update_events: EventReader<StartChunkUpdateEvent>,
-    player_query: Query<(&FlyCam, &Transform)>,
+    player_query: Query<(&Player, &Transform)>,
 ) {
     if start_chunk_update_events.iter().next().is_none() {
         return;
@@ -198,7 +199,7 @@ pub fn rebuild_on_change(
 pub fn compute_chunk_visibility(
     config: Res<Config>,
     mut chunks_query: Query<(&mut Visible, &Chunk)>,
-    player_query: Query<(&FlyCam, &Transform)>,
+    player_query: Query<(&Player, &Transform)>,
     mut start_chunk_update_events: EventReader<StartChunkUpdateEvent>,
 ) {
     if start_chunk_update_events.iter().next().is_none() {

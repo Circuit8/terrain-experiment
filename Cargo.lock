@@ -403,14 +403,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_flycam"
-version = "0.5.1"
-source = "git+https://github.com/Circuit8/bevy_flycam#34cada03f10aabdb861a6d56c6a9ab7c8c19c656"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "bevy_gilrs"
 version = "0.5.0"
 source = "git+https://github.com/bevyengine/bevy?branch=main#10cbe05175f68ab7369fbd65481b0723f2c9ef30"
@@ -3498,7 +3490,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
- "bevy_flycam",
  "color-eyre",
  "derive_more",
  "futures-lite",

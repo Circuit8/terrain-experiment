@@ -4,17 +4,16 @@ use bevy::{
     log::info,
     prelude::*,
     reflect::TypeUuid,
-    render::{
-        camera::PerspectiveProjection, renderer::RenderResources, wireframe::WireframePlugin,
-    },
+    render::{renderer::RenderResources, wireframe::WireframePlugin},
     wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
-use bevy_flycam::{FlyCam, MovementSettings, NoCameraPlayerPlugin};
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
 use color_eyre::Report;
 
+use crate::first_person::PlayerPlugin;
 use crate::terrain::Terrain;
 
+mod first_person;
 mod terrain;
 
 fn main() -> Result<(), Report> {
@@ -29,17 +28,13 @@ fn main() -> Result<(), Report> {
             ..Default::default()
         })
         .insert_resource(Msaa { samples: 4 })
-        .insert_resource(MovementSettings {
-            sensitivity: 0.00010, // default: 0.00012
-            speed: 40.0,          // default: 12.0
-        })
         .insert_resource(WgpuOptions {
             features: WgpuFeatures {
                 features: vec![WgpuFeature::NonFillPolygonMode], // Wireframe rendering for debugging requires NonFillPolygonMode feature
             },
             ..Default::default()
         })
-        .add_plugin(NoCameraPlayerPlugin)
+        // .add_plugin(NoCameraPlayerPlugin)
         .add_plugins(DefaultPlugins)
         .add_plugin(InspectorPlugin::<Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
@@ -47,15 +42,16 @@ fn main() -> Result<(), Report> {
         // .add_plugin(WgpuResourceDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(Terrain)
+        .add_plugin(PlayerPlugin)
         .add_plugin(WireframePlugin)
-        .add_startup_system(setup.system())
-        .add_system(increase_shaders_time.system())
+        .add_startup_system(setup)
+        .add_system(increase_shaders_time)
         .add_stage_after(
             CoreStage::Update,
             SlowUpdateStage,
             SystemStage::parallel()
                 .with_run_criteria(FixedTimestep::step(2.0))
-                .with_system(debug_player_position.system()),
+                .with_system(debug_player_position),
         )
         .run();
     Ok(())
@@ -87,17 +83,6 @@ fn setup(mut commands: Commands) {
             Vec3::new(0.0, -1.0, 0.0),
         ))
         .insert(Sun);
-
-    commands
-        .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_xyz(0.0, 160.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-            perspective_projection: PerspectiveProjection {
-                far: 3000.0,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(FlyCam);
 }
 
 /// In this system we query for the `TimeComponent` and global `Time` resource, and set
@@ -109,7 +94,7 @@ fn increase_shaders_time(time: Res<Time>, mut query: Query<&mut TimeUniform>) {
     }
 }
 
-fn debug_player_position(query: Query<&Transform, With<FlyCam>>) {
+fn debug_player_position(query: Query<&Transform, With<Player>>) {
     for transform in query.iter() {
         info!("Player position: {:?}", transform.translation);
     }
@@ -123,3 +108,5 @@ struct TimeUniform {
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
 struct SlowUpdateStage;
+
+pub struct Player;
