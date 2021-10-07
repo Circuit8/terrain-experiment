@@ -8,7 +8,6 @@ use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_rapier3d::{
     physics::{ColliderBundle, ColliderPositionSync, RigidBodyBundle},
     prelude::{ColliderShape, PhysicsPipeline},
-    render::ColliderDebugRender,
 };
 
 use crate::Player;
@@ -61,7 +60,6 @@ fn setup_player(mut commands: Commands) {
         .insert(rigid_body)
         .insert(collider)
         .insert(ColliderPositionSync::Discrete)
-        .insert(ColliderDebugRender::with_id(0))
         .insert(Player);
 }
 

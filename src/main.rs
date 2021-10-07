@@ -2,7 +2,6 @@ use bevy::{
     core::FixedTimestep,
     diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     log::info,
-    pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
     render::{renderer::RenderResources, wireframe::WireframePlugin},
