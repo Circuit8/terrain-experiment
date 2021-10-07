@@ -5,6 +5,11 @@ use bevy::{
     render::camera::PerspectiveProjection,
 };
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+use bevy_rapier3d::{
+    physics::{ColliderBundle, ColliderPositionSync, RigidBodyBundle},
+    prelude::{ColliderShape, PhysicsPipeline},
+    render::ColliderDebugRender,
+};
 
 use crate::Player;
 
@@ -13,27 +18,50 @@ mod mouse;
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
-    fn build(&self, app: &mut App) {
+    fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<InputState>()
             .add_plugin(InspectorPlugin::<MovementSettings>::new())
-            .add_startup_system(setup_player)
-            .add_startup_system(mouse::initial_grab)
-            .add_system(player_move)
-            .add_system(player_look)
-            .add_system(mouse::grab);
+            .add_startup_system(setup_player.system())
+            .add_startup_system(mouse::initial_grab.system())
+            .add_system(player_move.system())
+            .add_system(player_look.system())
+            .add_system(mouse::grab.system())
+            .add_startup_system(enable_physics_profiling.system());
     }
 }
 
+fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
+    pipeline.counters.enable()
+}
+
 fn setup_player(mut commands: Commands) {
+    let player_radius = 1.0;
+    let start_height = 60.0;
+    let transform = Transform::from_xyz(0.0, start_height, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
+
+    let rigid_body = RigidBodyBundle {
+        position: [0.0, start_height, 0.0].into(),
+        ..RigidBodyBundle::default()
+    };
+
+    let collider = ColliderBundle {
+        shape: ColliderShape::cuboid(player_radius, player_radius, player_radius),
+        ..ColliderBundle::default()
+    };
+
     commands
         .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_xyz(0.0, 60.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform,
             perspective_projection: PerspectiveProjection {
-                far: 3000.0,
+                far: 5000.0,
                 ..Default::default()
             },
             ..Default::default()
         })
+        .insert(rigid_body)
+        .insert(collider)
+        .insert(ColliderPositionSync::Discrete)
+        .insert(ColliderDebugRender::with_id(0))
         .insert(Player);
 }
 

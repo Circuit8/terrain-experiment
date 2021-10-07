@@ -148,7 +148,7 @@ pub fn insert_chunks(
                     base_color_texture: Some(textures.add(texture)),
                     roughness: config.material_roughness,
                     reflectance: config.material_reflectance,
-                    unlit: false,
+                    unlit: true,
                     ..Default::default()
                 }),
                 transform: Transform {

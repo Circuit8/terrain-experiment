@@ -59,10 +59,10 @@ impl Default for Config {
                 max_distance: 1300.,
                 level: SimplificationLevel(4),
             },
-            max_view_distance: 3000.,
+            max_view_distance: 1500.,
             material_roughness: 0.98,
             material_reflectance: 0.1,
-            endless: true,
+            endless: false,
             terrain_thresholds: [
                 TerrainThreshold {
                     max_height: 0.35,
@@ -124,23 +124,41 @@ impl SimplificationLevel {
 pub struct Terrain;
 
 impl Plugin for Terrain {
-    fn build(&self, app: &mut App) {
+    fn build(&self, app: &mut AppBuilder) {
         app.add_plugin(InspectorPlugin::<Config>::new())
             .add_event::<endless::StartChunkUpdateEvent>()
-            .add_startup_system(endless::setup)
-            .add_system(endless::trigger_update.label("endless::trigger_update"))
+            .add_startup_system(endless::setup.system())
+            .add_system(
+                endless::trigger_update
+                    .system()
+                    .label("endless::trigger_update"),
+            )
             .add_system(
                 endless::initialize_chunks
+                    .system()
                     .before("endless::compute_chunk_visibility")
                     .after("endless::trigger_update"),
             )
-            .add_system(endless::process_chunks.before("endless::compute_chunk_visibility"))
-            .add_system(endless::insert_chunks.before("endless::compute_chunk_visibility"))
+            .add_system(
+                endless::process_chunks
+                    .system()
+                    .before("endless::compute_chunk_visibility"),
+            )
+            .add_system(
+                endless::insert_chunks
+                    .system()
+                    .before("endless::compute_chunk_visibility"),
+            )
             .add_system(
                 endless::compute_chunk_visibility
+                    .system()
                     .label("endless::compute_chunk_visibility")
                     .after("endless::trigger_update"),
             )
-            .add_system(endless::rebuild_on_change.after("endless::compute_chunk_visibility"));
+            .add_system(
+                endless::rebuild_on_change
+                    .system()
+                    .after("endless::compute_chunk_visibility"),
+            );
     }
 }

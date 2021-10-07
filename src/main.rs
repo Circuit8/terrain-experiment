@@ -2,12 +2,14 @@ use bevy::{
     core::FixedTimestep,
     diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     log::info,
+    pbr::AmbientLight,
     prelude::*,
     reflect::TypeUuid,
     render::{renderer::RenderResources, wireframe::WireframePlugin},
     wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
+use bevy_rapier3d::physics::{NoUserData, RapierPhysicsPlugin};
 use color_eyre::Report;
 
 use crate::first_person::PlayerPlugin;
@@ -19,7 +21,7 @@ mod terrain;
 fn main() -> Result<(), Report> {
     init()?;
 
-    App::new()
+    App::build()
         .insert_resource(WindowDescriptor {
             title: "Josh's World".to_string(),
             width: 2000.,
@@ -39,19 +41,20 @@ fn main() -> Result<(), Report> {
         .add_plugin(InspectorPlugin::<Config>::new())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(EntityCountDiagnosticsPlugin::default())
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugin(WgpuResourceDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(Terrain)
         .add_plugin(PlayerPlugin)
         .add_plugin(WireframePlugin)
-        .add_startup_system(setup)
-        .add_system(increase_shaders_time)
+        .add_startup_system(setup.system())
+        .add_system(increase_shaders_time.system())
         .add_stage_after(
             CoreStage::Update,
             SlowUpdateStage,
             SystemStage::parallel()
                 .with_run_criteria(FixedTimestep::step(2.0))
-                .with_system(debug_player_position),
+                .with_system(debug_player_position.system()),
         )
         .run();
     Ok(())
@@ -71,18 +74,8 @@ struct Config {
     clear_color: ResourceInspector<ClearColor>,
 }
 
-struct Sun;
-
 fn setup(mut commands: Commands) {
     commands.insert_resource(ClearColor(Color::rgb_u8(190, 246, 255)));
-    commands
-        .spawn()
-        .insert(DirectionalLight::new(
-            Color::rgb_u8(255, 255, 255),
-            25000.0,
-            Vec3::new(0.0, -1.0, 0.0),
-        ))
-        .insert(Sun);
 }
 
 /// In this system we query for the `TimeComponent` and global `Time` resource, and set
