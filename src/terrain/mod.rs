@@ -59,7 +59,7 @@ impl Default for Config {
                 max_distance: 1300.,
                 level: SimplificationLevel(4),
             },
-            max_view_distance: 1800.,
+            max_view_distance: 3000.,
             material_roughness: 0.98,
             material_reflectance: 0.1,
             endless: true,
