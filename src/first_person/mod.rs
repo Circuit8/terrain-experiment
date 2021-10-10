@@ -7,7 +7,11 @@ use bevy::{
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_rapier3d::{
     physics::{ColliderBundle, ColliderPositionSync, RigidBodyBundle},
-    prelude::{ColliderShape, PhysicsPipeline},
+    prelude::{
+        ColliderShape, PhysicsPipeline, RigidBodyForces, RigidBodyMassProps,
+        RigidBodyMassPropsFlags, RigidBodyVelocity,
+    },
+    render::{ColliderDebugRender, RapierRenderPlugin},
 };
 
 use crate::Player;
@@ -20,13 +24,49 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<InputState>()
             .add_plugin(InspectorPlugin::<MovementSettings>::new())
+            .add_plugin(RapierRenderPlugin)
             .add_startup_system(setup_player.system())
             .add_startup_system(mouse::initial_grab.system())
             .add_system(player_move.system())
             .add_system(player_look.system())
             .add_system(mouse::grab.system())
-            .add_startup_system(enable_physics_profiling.system());
+            .add_startup_system(enable_physics_profiling.system())
+            .add_startup_system(testing.system());
     }
+}
+
+fn testing(mut commands: Commands) {
+    let ground_size = 100.;
+    let ground_height = 10.;
+
+    let collider = ColliderBundle {
+        shape: ColliderShape::cuboid(ground_size, ground_height, ground_size),
+        position: [0.0, 150.0, 0.0].into(),
+        ..ColliderBundle::default()
+    };
+
+    commands
+        .spawn_bundle(collider)
+        .insert(ColliderDebugRender::default())
+        .insert(ColliderPositionSync::Discrete);
+
+    // Build the rigid body.
+    let rigid_body = RigidBodyBundle {
+        position: [10.0, 300.0, 10.0].into(),
+        ..RigidBodyBundle::default()
+    };
+
+    let collider = ColliderBundle {
+        shape: ColliderShape::cuboid(2.0, 2.0, 2.0),
+        ..ColliderBundle::default()
+    };
+
+    commands
+        .spawn()
+        .insert_bundle(rigid_body)
+        .insert_bundle(collider)
+        .insert(ColliderDebugRender::with_id(100))
+        .insert(ColliderPositionSync::Discrete);
 }
 
 fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
@@ -35,10 +75,11 @@ fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
 
 fn setup_player(mut commands: Commands) {
     let player_radius = 1.0;
-    let start_height = 60.0;
-    let transform = Transform::from_xyz(0.0, start_height, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
+    let start_height = 200.0;
+    let transform = Transform::from_xyz(20.0, start_height, 20.0).looking_at(Vec3::ZERO, Vec3::Y);
 
     let rigid_body = RigidBodyBundle {
+        mass_properties: (RigidBodyMassPropsFlags::ROTATION_LOCKED).into(),
         position: [0.0, start_height, 0.0].into(),
         ..RigidBodyBundle::default()
     };
@@ -57,8 +98,8 @@ fn setup_player(mut commands: Commands) {
             },
             ..Default::default()
         })
-        .insert(rigid_body)
-        .insert(collider)
+        .insert_bundle(rigid_body)
+        .insert_bundle(collider)
         .insert(ColliderPositionSync::Discrete)
         .insert(Player);
 }
@@ -66,14 +107,19 @@ fn setup_player(mut commands: Commands) {
 /// Handles keyboard input and movement
 fn player_move(
     keys: Res<Input<KeyCode>>,
-    time: Res<Time>,
     windows: Res<Windows>,
     settings: Res<MovementSettings>,
-    mut query: Query<(&Player, &mut Transform)>,
+    mut query: Query<(
+        &Player,
+        &Transform,
+        &mut RigidBodyForces,
+        &mut RigidBodyVelocity,
+        &RigidBodyMassProps,
+    )>,
 ) {
     let window = windows.get_primary().unwrap();
-    for (_camera, mut transform) in query.iter_mut() {
-        let mut velocity = Vec3::ZERO;
+    for (_camera, transform, mut forces, mut velocity, mass) in query.iter_mut() {
+        let mut force = Vec3::ZERO;
         let local_z = transform.local_z();
         let forward = -Vec3::new(local_z.x, 0., local_z.z);
         let right = Vec3::new(local_z.z, 0., -local_z.x);
@@ -81,30 +127,30 @@ fn player_move(
         for key in keys.get_pressed() {
             if window.cursor_locked() {
                 if validate_key(settings.map.forward, key) {
-                    velocity += forward
+                    force += forward
                 }
                 if validate_key(settings.map.backward, key) {
-                    velocity -= forward
+                    force -= forward
                 }
                 if validate_key(settings.map.left, key) {
-                    velocity -= right
+                    force -= right
                 }
                 if validate_key(settings.map.right, key) {
-                    velocity += right
+                    force += right
                 }
                 if validate_key(settings.map.up, key) {
-                    velocity += Vec3::Y
+                    force += Vec3::Y
                 }
                 if validate_key(settings.map.down, key) {
-                    velocity -= Vec3::Y
+                    force -= Vec3::Y
                 }
             }
         }
 
-        velocity = velocity.normalize();
+        force = force.normalize();
 
-        if !velocity.is_nan() {
-            transform.translation += velocity * time.delta_seconds() * settings.speed
+        if !force.is_nan() {
+            velocity.apply_impulse(mass, force.into());
         }
     }
 }
