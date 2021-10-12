@@ -568,6 +568,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_prototype_character_controller"
+version = "0.1.0"
+source = "git+https://github.com/superdump/bevy_prototype_character_controller#a7a87b3c2c4e39220f9f3ee4ebca148de90a4a09"
+dependencies = [
+ "bevy",
+ "bevy_rapier3d",
+]
+
+[[package]]
 name = "bevy_rapier3d"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3194,8 +3203,10 @@ dependencies = [
  "num-derive",
  "num-traits",
  "parry3d",
+ "rayon",
  "rustc-hash",
  "simba",
+ "vec_map",
 ]
 
 [[package]]
@@ -3707,6 +3718,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
+ "bevy_prototype_character_controller",
  "bevy_rapier3d",
  "color-eyre",
  "derive_more",
