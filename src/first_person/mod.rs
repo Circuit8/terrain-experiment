@@ -184,16 +184,21 @@ fn player_move(
         // simulation steps were taken
         config.sim_to_render %= config.dt;
 
-        if desired_direction.length_squared() > 1E-6 {
-            let desired_velocity = desired_direction.normalize() * config.speed;
-            // Calculate impulse - the desired momentum change for the time period
-            let current_velocity: Vec3 = velocity.linvel.into();
-            let current_ground_velocity = current_velocity * Vec3::new(1.0, 0.0, 1.0);
-            let delta_velocity = desired_velocity - current_ground_velocity;
-            let impulse = delta_velocity * mass_props.mass();
-            if impulse.length_squared() > 1E-6 {
-                velocity.apply_impulse(mass_props, impulse.into());
-            }
+        let current_velocity: Vec3 = velocity.linvel.into();
+        let current_ground_velocity = current_velocity * Vec3::new(1.0, 0.0, 1.0);
+
+        let desired_velocity = if desired_direction.length_squared() > 1E-6 {
+            desired_direction.normalize() * config.speed
+        } else {
+            // No input, damp the velocity so we dont keep gliding off into the distance
+            current_ground_velocity * 0.5
+        };
+
+        // Calculate impulse - the desired momentum change for the time period
+        let delta_velocity = desired_velocity - current_ground_velocity;
+        let impulse = delta_velocity * mass_props.mass();
+        if impulse.length_squared() > 1E-6 {
+            velocity.apply_impulse(mass_props, impulse.into());
         }
     }
 }
