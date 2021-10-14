@@ -7,6 +7,7 @@ use bevy::{
     render::wireframe::Wireframe,
     tasks::{AsyncComputeTaskPool, Task},
 };
+use bevy_rapier3d::{physics::ColliderBundle, prelude::SharedShape};
 use derive_more::{Deref, DerefMut};
 use futures_lite::future;
 use std::collections::HashMap;
@@ -44,8 +45,6 @@ pub fn initialize_chunks(
     if start_chunk_update_events.iter().next().is_none() {
         return;
     }
-
-    info!("Initializing chunks");
 
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
     let viewer_chunk_coords = ChunkCoords::from_position(&viewer_position);
@@ -120,29 +119,41 @@ pub fn process_chunks(
             let texture = texture::generate(&height_map, &config);
             let mut terrain_mesh_generator =
                 mesh::Generator::new(height_map, config.height_scale, simplification_level);
-            let mesh = terrain_mesh_generator.generate();
+            terrain_mesh_generator.generate();
+            let mesh = terrain_mesh_generator.graphics_mesh();
+            let collider_shape = terrain_mesh_generator.collider_shape();
 
-            (texture, mesh)
+            (texture, mesh, collider_shape)
         });
 
         commands.entity(entity).insert(task);
     }
 }
 
-// This system polls the chunk generation tasks and when one is complete updates the entity with a proper mesh and texture
+// This system polls the chunk generation tasks and when one is complete updates the entity with a mesh, texture, and physics collider
 pub fn insert_chunks(
     mut commands: Commands,
-    mut chunks_query: Query<(Entity, &Chunk, &mut Task<(Texture, Mesh)>)>,
+    mut chunks_query: Query<(Entity, &Chunk, &mut ChunkTask)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut textures: ResMut<Assets<Texture>>,
     config: Res<Config>,
 ) {
     for (entity, chunk, mut task) in chunks_query.iter_mut() {
-        if let Some((texture, mesh)) = future::block_on(future::poll_once(&mut *task)) {
+        if let Some((texture, mesh, collider_shape)) =
+            future::block_on(future::poll_once(&mut *task))
+        {
             let position = chunk.coords.to_position();
+            let transform = Transform {
+                translation: Vec3::new(
+                    position.x - CHUNK_SIZE as f32 / 2.0,
+                    0.0,
+                    position.y - CHUNK_SIZE as f32 / 2.0,
+                ),
+                ..Default::default()
+            };
 
-            commands.entity(entity).insert_bundle(PbrBundle {
+            let pbr = PbrBundle {
                 mesh: meshes.add(mesh),
                 material: materials.add(StandardMaterial {
                     base_color_texture: Some(textures.add(texture)),
@@ -151,16 +162,20 @@ pub fn insert_chunks(
                     unlit: true,
                     ..Default::default()
                 }),
-                transform: Transform {
-                    translation: Vec3::new(
-                        position.x - CHUNK_SIZE as f32 / 2.0,
-                        0.0,
-                        position.y - CHUNK_SIZE as f32 / 2.0,
-                    ),
-                    ..Default::default()
-                },
+                transform,
                 ..Default::default()
-            });
+            };
+
+            let collider = ColliderBundle {
+                position: transform.translation.into(),
+                shape: collider_shape,
+                ..ColliderBundle::default()
+            };
+
+            commands
+                .entity(entity)
+                .insert_bundle(pbr)
+                .insert_bundle(collider);
 
             if config.wireframe {
                 commands.entity(entity).insert(Wireframe);
@@ -169,7 +184,7 @@ pub fn insert_chunks(
             commands
                 .entity(entity)
                 .remove::<Processing>()
-                .remove::<Task<(Texture, Mesh)>>();
+                .remove::<ChunkTask>();
         }
     }
 }
@@ -183,8 +198,6 @@ pub fn rebuild_on_change(
     mut events: EventWriter<StartChunkUpdateEvent>,
 ) {
     if config.is_changed() {
-        info!("Config has changed, going to despawn");
-
         // Destroy all the previous terrain entities
         for (entity, _) in chunk_query.iter() {
             commands.entity(entity).despawn_recursive()
@@ -206,8 +219,6 @@ pub fn compute_chunk_visibility(
         return;
     }
 
-    info!("Computing Visibility");
-
     let viewer_position = player_query.iter().nth(0).unwrap().1.translation.xz();
 
     for (mut visible, chunk) in chunks_query.iter_mut() {
@@ -220,6 +231,8 @@ pub fn compute_chunk_visibility(
         }
     }
 }
+
+type ChunkTask = Task<(Texture, Mesh, SharedShape)>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct ChunkCoords {

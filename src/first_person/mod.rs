@@ -6,12 +6,12 @@ use bevy::{
 };
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_rapier3d::{
-    physics::{ColliderBundle, ColliderPositionSync, RigidBodyBundle, RigidBodyPositionSync},
+    physics::{ColliderBundle, RigidBodyBundle, RigidBodyPositionSync},
     prelude::{
         ColliderMassProps, ColliderShape, PhysicsPipeline, RigidBodyActivation, RigidBodyDamping,
         RigidBodyMassProps, RigidBodyMassPropsFlags, RigidBodyType, RigidBodyVelocity,
     },
-    render::{ColliderDebugRender, RapierRenderPlugin},
+    render::RapierRenderPlugin,
 };
 
 use crate::Player;
@@ -32,43 +32,8 @@ impl Plugin for PlayerPlugin {
             .add_system(player_move.system())
             .add_system(player_look.system())
             .add_system(mouse::grab.system())
-            .add_startup_system(enable_physics_profiling.system())
-            .add_startup_system(testing.system());
+            .add_startup_system(enable_physics_profiling.system());
     }
-}
-
-fn testing(mut commands: Commands) {
-    let ground_size = 100.;
-    let ground_height = 10.;
-
-    let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(ground_size, ground_height, ground_size),
-        position: [0.0, 150.0, 0.0].into(),
-        ..ColliderBundle::default()
-    };
-
-    commands
-        .spawn_bundle(collider)
-        .insert(ColliderDebugRender::default())
-        .insert(ColliderPositionSync::Discrete);
-
-    // Build the rigid body.
-    let rigid_body = RigidBodyBundle {
-        position: [10.0, 300.0, 10.0].into(),
-        ..RigidBodyBundle::default()
-    };
-
-    let collider = ColliderBundle {
-        shape: ColliderShape::cuboid(2.0, 2.0, 2.0),
-        ..ColliderBundle::default()
-    };
-
-    commands
-        .spawn()
-        .insert_bundle(rigid_body)
-        .insert_bundle(collider)
-        .insert(ColliderDebugRender::with_id(100))
-        .insert(ColliderPositionSync::Discrete);
 }
 
 fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
@@ -228,35 +193,6 @@ fn player_look(
         }
     }
 }
-
-// pub fn input_to_look(
-//     mut mouse_motion_events: EventReader<MouseMotion>,
-//     mut settings: ResMut<MouseSettings>,
-//     mut pitch_events: EventWriter<PitchEvent>,
-//     mut yaw_events: EventWriter<YawEvent>,
-//     mut look_events: EventWriter<LookEvent>,
-//     mut look_delta_events: EventWriter<LookDeltaEvent>,
-// ) {
-//     let mut delta = Vec2::ZERO;
-//     for motion in mouse_motion_events.iter() {
-//         // NOTE: -= to invert
-//         delta -= motion.delta;
-//     }
-//     if delta.length_squared() > 1E-6 {
-//         delta *= settings.sensitivity;
-//         settings.yaw_pitch_roll += delta.extend(0.0);
-//         if settings.yaw_pitch_roll.y > PITCH_BOUND {
-//             settings.yaw_pitch_roll.y = PITCH_BOUND;
-//         }
-//         if settings.yaw_pitch_roll.y < -PITCH_BOUND {
-//             settings.yaw_pitch_roll.y = -PITCH_BOUND;
-//         }
-//         look_delta_events.send(LookDeltaEvent::new(&delta.extend(0.0)));
-//         look_events.send(LookEvent::new(&settings.yaw_pitch_roll));
-//         pitch_events.send(PitchEvent::new(settings.yaw_pitch_roll.y));
-//         yaw_events.send(YawEvent::new(settings.yaw_pitch_roll.x));
-//     }
-// }
 
 fn validate_key<T>(codes: &'static [T], key: &T) -> bool
 where

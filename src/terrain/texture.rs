@@ -11,10 +11,10 @@ pub fn generate(height_map: &HeightMap, config: &Config) -> Texture {
 }
 
 fn generate_color_map(height_map: &HeightMap, config: &Config) -> ColorMap {
-    let mut color_map = ColorMap::new((height_map.len(), height_map.len()));
-    for y in 0..height_map.len() {
-        for x in 0..height_map.len() {
-            let height = height_map[y][x];
+    let mut color_map = ColorMap::new((height_map.size, height_map.size));
+    for y in 0..height_map.size {
+        for x in 0..height_map.size {
+            let height = height_map.data[y][x];
 
             for terrain in config.terrain_thresholds.iter() {
                 if height < terrain.max_height {

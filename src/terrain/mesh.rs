@@ -5,6 +5,10 @@ use bevy::{
         pipeline::PrimitiveTopology,
     },
 };
+use bevy_rapier3d::{
+    na::{DMatrix, Vector3},
+    prelude::{ColliderShape, SharedShape},
+};
 
 use super::{height_map::HeightMap, SimplificationLevel};
 
@@ -12,10 +16,13 @@ pub struct Generator {
     pub height_map: HeightMap,
     pub height_scale: f32,
     pub simplification_level: SimplificationLevel,
+    pub simplification_increment: usize,
+    pub vertices_per_line: usize,
     pub vertices: Vec<[f32; 3]>,
     pub triangles: Vec<u32>,
     pub uvs: Vec<[f32; 2]>,
     pub normals: Vec<[f32; 3]>,
+    pub map_width: usize,
     triangles_index: u32,
 }
 
@@ -25,10 +32,22 @@ impl Generator {
         height_scale: f32,
         simplification_level: SimplificationLevel,
     ) -> Generator {
+        let map_width = height_map.data.len();
+
+        let simplification_increment = if simplification_level == SimplificationLevel(0) {
+            1
+        } else {
+            (simplification_level.0 * 2) as usize
+        };
+        let vertices_per_line = (map_width - 1) / simplification_increment + 1;
+
         Generator {
             height_map,
             height_scale,
             simplification_level,
+            simplification_increment,
+            vertices_per_line,
+            map_width,
             vertices: vec![],
             triangles: vec![],
             uvs: vec![],
@@ -37,51 +56,43 @@ impl Generator {
         }
     }
 
-    pub fn generate(&mut self) -> Mesh {
-        let map_width = self.height_map.len();
-        let map_height = self.height_map.len();
-        let map_size = map_width * map_height;
+    pub fn generate(&mut self) {
+        let map_size = self.map_width * self.map_width;
 
         self.vertices = vec![[0., 0., 0.]; map_size];
         self.normals = vec![[0., 0., 0.]; map_size];
         self.uvs = vec![[0., 0.]; map_size];
-        self.triangles = vec![0; (map_width - 1) * (map_height - 1) * 6];
+        self.triangles = vec![0; (self.map_width - 1) * (self.map_width - 1) * 6];
         self.triangles_index = 0;
-
-        let mesh_simplification_increment = if self.simplification_level == SimplificationLevel(0) {
-            1
-        } else {
-            (self.simplification_level.0 * 2) as usize
-        };
-        let vertices_per_line = (map_width - 1) / mesh_simplification_increment + 1;
 
         let mut vertex_index = 0;
         let mut y = 0;
-        while y < map_height {
+        while y < self.map_width {
             let mut x = 0;
-            while x < map_width {
-                let height = self.height_map[y][x] * self.height_scale;
+            while x < self.map_width {
+                let height = self.height_map.data[y][x] * self.height_scale;
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
-                self.uvs[vertex_index] =
-                    [x as f32 / map_width as f32, y as f32 / map_height as f32];
+                self.uvs[vertex_index] = [
+                    x as f32 / self.map_width as f32,
+                    y as f32 / self.map_width as f32,
+                ];
 
-                if x < map_width - 1 && y < map_height - 1 {
+                if x < self.map_width - 1 && y < self.map_width - 1 {
                     let top_left = vertex_index;
                     let top_right = vertex_index + 1;
-                    let bottom_left = vertex_index + vertices_per_line;
-                    let bottom_right = vertex_index + vertices_per_line + 1;
+                    let bottom_left = vertex_index + self.vertices_per_line;
+                    let bottom_right = vertex_index + self.vertices_per_line + 1;
                     self.add_triangle(bottom_right, top_left, bottom_left);
                     self.add_triangle(top_left, bottom_right, top_right);
                 }
 
                 vertex_index += 1;
-                x += mesh_simplification_increment;
+                x += self.simplification_increment;
             }
-            y += mesh_simplification_increment;
+            y += self.simplification_increment;
         }
-
-        self.create_mesh()
+        self.calculate_normals();
     }
 
     fn add_triangle(&mut self, a: usize, b: usize, c: usize) {
@@ -91,9 +102,7 @@ impl Generator {
         self.triangles_index += 3;
     }
 
-    fn create_mesh(&mut self) -> Mesh {
-        self.calculate_normals();
-
+    pub fn graphics_mesh(&mut self) -> Mesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.set_indices(Some(Indices::U32(self.triangles.clone())));
         mesh.set_attribute(
@@ -107,6 +116,14 @@ impl Generator {
         mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals.clone());
 
         return mesh;
+    }
+
+    pub fn collider_shape(&self) -> ColliderShape {
+        let iter = self.vertices.iter().map(|&[_, y, _]| y);
+        let heights = DMatrix::from_iterator(self.map_width, self.map_width, iter);
+        let scale = Vector3::new(self.map_width as f32, 1.0, self.map_width as f32);
+
+        SharedShape::heightfield(heights, scale)
     }
 
     // Right now this is not a perfect way of handling the normals.

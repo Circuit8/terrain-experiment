@@ -1,5 +1,4 @@
 use bevy::math::Vec2;
-use derive_more::{Deref, DerefMut};
 use nalgebra_glm::smoothstep;
 use noise::{NoiseFn, Perlin};
 
@@ -9,9 +8,10 @@ use super::{endless::ChunkCoords, Config, MAP_CHUNK_SIZE};
 const AMPLITUDE_HEURISTIC: f32 = 0.9;
 const HEIGHT_HEURISTIC: f32 = 1.1;
 
-#[derive(Deref, DerefMut)]
-// pub struct HeightMap(pub NoiseMap);
-pub struct HeightMap(Vec<Vec<f32>>);
+pub struct HeightMap {
+    pub data: Vec<Vec<f32>>,
+    pub size: usize,
+}
 
 impl HeightMap {
     pub fn generate(config: &Config, chunk_coords: &ChunkCoords) -> HeightMap {
@@ -27,32 +27,35 @@ impl HeightMap {
         let scale = config.scale.max(f32::EPSILON);
 
         let chunk_offset = chunk_coords.to_position();
-        HeightMap(
-            (0..MAP_CHUNK_SIZE)
-                .map(|y| {
-                    (0..MAP_CHUNK_SIZE)
-                        .map(|x| {
-                            let mut height = 0.0;
-                            let mut amplitude = 1.0;
-                            let mut frequency = 1.0;
+        let map = (0..MAP_CHUNK_SIZE)
+            .map(|y| {
+                (0..MAP_CHUNK_SIZE)
+                    .map(|x| {
+                        let mut height = 0.0;
+                        let mut amplitude = 1.0;
+                        let mut frequency = 1.0;
 
-                            for _ in 0..config.octaves {
-                                let sample = (Vec2::new(x as f32, y as f32) + chunk_offset)
-                                    / Vec2::new(MAP_CHUNK_SIZE as f32, MAP_CHUNK_SIZE as f32)
-                                    / (scale * frequency);
-                                let perlin_point = [sample.x as f64, sample.y as f64];
-                                height += noise.get(perlin_point) as f32 * amplitude;
+                        for _ in 0..config.octaves {
+                            let sample = (Vec2::new(x as f32, y as f32) + chunk_offset)
+                                / Vec2::new(MAP_CHUNK_SIZE as f32, MAP_CHUNK_SIZE as f32)
+                                / (scale * frequency);
+                            let perlin_point = [sample.x as f64, sample.y as f64];
+                            height += noise.get(perlin_point) as f32 * amplitude;
 
-                                amplitude *= config.persistence;
-                                frequency *= config.lacunarity;
-                            }
+                            amplitude *= config.persistence;
+                            frequency *= config.lacunarity;
+                        }
 
-                            height
-                        })
-                        .collect()
-                })
-                .collect(),
-        )
+                        height
+                    })
+                    .collect()
+            })
+            .collect();
+
+        HeightMap {
+            data: map,
+            size: MAP_CHUNK_SIZE as usize,
+        }
     }
 
     fn normalize(&mut self, config: &Config) {
@@ -72,7 +75,7 @@ impl HeightMap {
         let spread = max_possible_height / 2.0;
 
         // normalize the map height between 0 and 1
-        self.iter_mut().for_each(|row| {
+        self.data.iter_mut().for_each(|row| {
             row.iter_mut().for_each(|height| {
                 *height = smoothstep(-spread, spread, *height / max_possible_height);
             })
