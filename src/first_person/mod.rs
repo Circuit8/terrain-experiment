@@ -6,7 +6,8 @@ use bevy::{
 };
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_rapier3d::{
-    physics::{ColliderBundle, RigidBodyBundle, RigidBodyPositionSync},
+    na::Vector,
+    physics::{ColliderBundle, RapierConfiguration, RigidBodyBundle, RigidBodyPositionSync},
     prelude::{
         ColliderMassProps, ColliderShape, PhysicsPipeline, RigidBodyActivation, RigidBodyDamping,
         RigidBodyForces, RigidBodyMassProps, RigidBodyMassPropsFlags, RigidBodyType,
@@ -26,6 +27,10 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<MouseState>()
+            .insert_resource(RapierConfiguration {
+                gravity: Vector::y() * -50.0,
+                ..Default::default()
+            })
             .add_plugin(InspectorPlugin::<MovementConfig>::new())
             .add_plugin(RapierRenderPlugin)
             .add_startup_system(setup_player.system())
@@ -39,7 +44,6 @@ impl Plugin for PlayerPlugin {
 }
 
 fn setup_player(mut commands: Commands) {
-    let player_radius = 1.0;
     let start_height = 200.0;
     let transform = Transform::from_xyz(20.0, start_height, 20.0).looking_at(Vec3::ZERO, Vec3::Y);
 
@@ -63,8 +67,8 @@ fn setup_player(mut commands: Commands) {
     };
 
     let collider = ColliderBundle {
-        mass_properties: ColliderMassProps::Density(200.0),
-        shape: ColliderShape::cuboid(player_radius, player_radius, player_radius),
+        mass_properties: ColliderMassProps::Density(100.0),
+        shape: ColliderShape::cuboid(0.5, 2.0, 0.5),
         ..ColliderBundle::default()
     };
 
@@ -81,6 +85,10 @@ fn setup_player(mut commands: Commands) {
         .spawn_bundle(PerspectiveCameraBundle {
             perspective_projection: PerspectiveProjection {
                 far: 5000.0,
+                ..Default::default()
+            },
+            transform: Transform {
+                translation: Vec3::new(0.0, 1.0, 0.0),
                 ..Default::default()
             },
             ..Default::default()
@@ -198,11 +206,14 @@ fn player_look(
 
 fn config_change(
     config: Res<MovementConfig>,
+    mut rapier_config: ResMut<RapierConfiguration>,
     mut player_query: Query<&mut RigidBodyForces, With<Player>>,
 ) {
     if config.is_changed() {
         let mut forces = player_query.iter_mut().next().unwrap();
-        forces.gravity_scale = if config.gravity { 1.0 } else { 0.0 }
+        forces.gravity_scale = if config.gravity { 1.0 } else { 0.0 };
+
+        rapier_config.gravity = Vector::y() * config.gravity_strength;
     }
 }
 
@@ -231,6 +242,7 @@ pub struct MovementConfig {
     pub speed: f32,
     dt: f32,
     gravity: bool,
+    gravity_strength: f32,
     #[inspectable(ignore)]
     sim_to_render: f32,
     #[inspectable(ignore)]
@@ -244,6 +256,7 @@ impl Default for MovementConfig {
             speed: 60.,
             dt: 1.0 / 60.0,
             gravity: true,
+            gravity_strength: -50.0,
             sim_to_render: 0.0,
             map: CamKeyMap::default(),
         }
