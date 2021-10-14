@@ -573,7 +573,6 @@ version = "0.1.0"
 source = "git+https://github.com/superdump/bevy_prototype_character_controller#a7a87b3c2c4e39220f9f3ee4ebca148de90a4a09"
 dependencies = [
  "bevy",
- "bevy_rapier3d",
 ]
 
 [[package]]
@@ -3203,10 +3202,8 @@ dependencies = [
  "num-derive",
  "num-traits",
  "parry3d",
- "rayon",
  "rustc-hash",
  "simba",
- "vec_map",
 ]
 
 [[package]]

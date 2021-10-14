@@ -9,7 +9,8 @@ use bevy_rapier3d::{
     physics::{ColliderBundle, RigidBodyBundle, RigidBodyPositionSync},
     prelude::{
         ColliderMassProps, ColliderShape, PhysicsPipeline, RigidBodyActivation, RigidBodyDamping,
-        RigidBodyMassProps, RigidBodyMassPropsFlags, RigidBodyType, RigidBodyVelocity,
+        RigidBodyForces, RigidBodyMassProps, RigidBodyMassPropsFlags, RigidBodyType,
+        RigidBodyVelocity,
     },
     render::RapierRenderPlugin,
 };
@@ -32,12 +33,9 @@ impl Plugin for PlayerPlugin {
             .add_system(player_move.system())
             .add_system(player_look.system())
             .add_system(mouse::grab.system())
+            .add_system(config_change.system())
             .add_startup_system(enable_physics_profiling.system());
     }
-}
-
-fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
-    pipeline.counters.enable()
 }
 
 fn setup_player(mut commands: Commands) {
@@ -46,6 +44,10 @@ fn setup_player(mut commands: Commands) {
     let transform = Transform::from_xyz(20.0, start_height, 20.0).looking_at(Vec3::ZERO, Vec3::Y);
 
     let rigid_body = RigidBodyBundle {
+        forces: RigidBodyForces {
+            gravity_scale: 0.0,
+            ..Default::default()
+        },
         mass_properties: RigidBodyMassPropsFlags::ROTATION_LOCKED.into(),
         position: [0.0, start_height, 0.0].into(),
         damping: RigidBodyDamping {
@@ -194,6 +196,20 @@ fn player_look(
     }
 }
 
+fn config_change(
+    config: Res<MovementConfig>,
+    mut player_query: Query<&mut RigidBodyForces, With<Player>>,
+) {
+    if config.is_changed() {
+        let mut forces = player_query.iter_mut().next().unwrap();
+        forces.gravity_scale = if config.gravity { 1.0 } else { 0.0 }
+    }
+}
+
+fn enable_physics_profiling(mut pipeline: ResMut<PhysicsPipeline>) {
+    pipeline.counters.enable()
+}
+
 fn validate_key<T>(codes: &'static [T], key: &T) -> bool
 where
     T: PartialEq<T>,
@@ -214,6 +230,7 @@ pub struct MovementConfig {
     pub sensitivity: f32,
     pub speed: f32,
     dt: f32,
+    gravity: bool,
     #[inspectable(ignore)]
     sim_to_render: f32,
     #[inspectable(ignore)]
@@ -226,6 +243,7 @@ impl Default for MovementConfig {
             sensitivity: 1.2,
             speed: 60.,
             dt: 1.0 / 60.0,
+            gravity: true,
             sim_to_render: 0.0,
             map: CamKeyMap::default(),
         }

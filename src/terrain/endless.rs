@@ -7,7 +7,10 @@ use bevy::{
     render::wireframe::Wireframe,
     tasks::{AsyncComputeTaskPool, Task},
 };
-use bevy_rapier3d::{physics::ColliderBundle, prelude::SharedShape};
+use bevy_rapier3d::{
+    physics::{ColliderBundle, ColliderPositionSync},
+    prelude::SharedShape,
+};
 use derive_more::{Deref, DerefMut};
 use futures_lite::future;
 use std::collections::HashMap;
@@ -166,8 +169,15 @@ pub fn insert_chunks(
                 ..Default::default()
             };
 
+            println!("Transform: {:?}", transform.translation);
+
+            println!(
+                "shape aabb {:?}",
+                collider_shape.0.as_heightfield().unwrap().root_aabb()
+            );
+
             let collider = ColliderBundle {
-                position: transform.translation.into(),
+                position: Vec3::new(position.x, 0.5, position.y).into(),
                 shape: collider_shape,
                 ..ColliderBundle::default()
             };

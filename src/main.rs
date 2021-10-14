@@ -8,7 +8,13 @@ use bevy::{
     wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions},
 };
 use bevy_inspector_egui::{widgets::ResourceInspector, Inspectable, InspectorPlugin};
-use bevy_rapier3d::physics::{NoUserData, RapierPhysicsPlugin};
+use bevy_rapier3d::{
+    physics::{
+        ColliderBundle, ColliderPositionSync, NoUserData, RapierPhysicsPlugin, RigidBodyBundle,
+    },
+    prelude::ColliderShape,
+    render::{ColliderDebugRender, RapierRenderPlugin},
+};
 use color_eyre::Report;
 
 use crate::first_person::PlayerPlugin;
@@ -55,6 +61,8 @@ fn main() -> Result<(), Report> {
                 .with_run_criteria(FixedTimestep::step(2.0))
                 .with_system(debug_player_position.system()),
         )
+        .add_plugin(RapierRenderPlugin)
+        .add_startup_system(test.system())
         .run();
     Ok(())
 }
@@ -89,6 +97,36 @@ fn increase_shaders_time(time: Res<Time>, mut query: Query<&mut TimeUniform>) {
 fn debug_player_position(query: Query<&Transform, With<Player>>) {
     for transform in query.iter() {
         info!("Player position: {:?}", transform.translation);
+    }
+}
+
+fn test(mut commands: Commands) {
+    let y = 150.0;
+    let mut color = 0;
+    let rad = 0.5;
+
+    for x in -24..24 {
+        for z in -24..24 {
+            color += 1;
+
+            // Build the rigid body.
+            let rigid_body = RigidBodyBundle {
+                position: [(x * 10) as f32, y, (z * 10) as f32].into(),
+                ..RigidBodyBundle::default()
+            };
+
+            let collider = ColliderBundle {
+                shape: ColliderShape::cuboid(rad, rad, rad),
+                ..ColliderBundle::default()
+            };
+
+            commands
+                .spawn()
+                .insert_bundle(rigid_body)
+                .insert_bundle(collider)
+                .insert(ColliderDebugRender::with_id(color))
+                .insert(ColliderPositionSync::Discrete);
+        }
     }
 }
 

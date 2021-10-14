@@ -70,7 +70,7 @@ impl Generator {
         while y < self.map_width {
             let mut x = 0;
             while x < self.map_width {
-                let height = self.height_map.data[y][x] * self.height_scale;
+                let height = self.height_map.data[y][x];
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
                 self.uvs[vertex_index] = [
@@ -119,7 +119,7 @@ impl Generator {
     }
 
     pub fn collider_shape(&self) -> ColliderShape {
-        let iter = self.vertices.iter().map(|&[_, y, _]| y);
+        let iter = self.vertices.iter().map(|&[_, y, _]| 0.0);
         let heights = DMatrix::from_iterator(self.map_width, self.map_width, iter);
         let scale = Vector3::new(self.map_width as f32, 1.0, self.map_width as f32);
 
