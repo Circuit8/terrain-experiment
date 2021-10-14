@@ -7,10 +7,7 @@ use bevy::{
     render::wireframe::Wireframe,
     tasks::{AsyncComputeTaskPool, Task},
 };
-use bevy_rapier3d::{
-    physics::{ColliderBundle, ColliderPositionSync},
-    prelude::SharedShape,
-};
+use bevy_rapier3d::{physics::ColliderBundle, prelude::SharedShape};
 use derive_more::{Deref, DerefMut};
 use futures_lite::future;
 use std::collections::HashMap;
@@ -84,10 +81,14 @@ pub fn initialize_chunks(
             {
                 if *existing_simplification_level != simplification_level {
                     *existing_simplification_level = simplification_level;
-                    commands.entity(*entity).insert(Processing).insert(Chunk {
-                        coords: chunk_coords,
-                        simplification_level,
-                    });
+                    commands
+                        .entity(*entity)
+                        .insert(Processing)
+                        .insert(Chunk {
+                            coords: chunk_coords,
+                            simplification_level,
+                        })
+                        .remove_bundle::<ColliderBundle>();
                 }
             } else {
                 let entity = commands
@@ -169,15 +170,8 @@ pub fn insert_chunks(
                 ..Default::default()
             };
 
-            println!("Transform: {:?}", transform.translation);
-
-            println!(
-                "shape aabb {:?}",
-                collider_shape.0.as_heightfield().unwrap().root_aabb()
-            );
-
             let collider = ColliderBundle {
-                position: Vec3::new(position.x, 0.5, position.y).into(),
+                position: transform.translation.into(),
                 shape: collider_shape,
                 ..ColliderBundle::default()
             };

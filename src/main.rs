@@ -62,7 +62,7 @@ fn main() -> Result<(), Report> {
                 .with_system(debug_player_position.system()),
         )
         .add_plugin(RapierRenderPlugin)
-        .add_startup_system(test.system())
+        // .add_startup_system(test.system())
         .run();
     Ok(())
 }
@@ -100,13 +100,14 @@ fn debug_player_position(query: Query<&Transform, With<Player>>) {
     }
 }
 
-fn test(mut commands: Commands) {
+#[allow(dead_code)]
+fn physics_test(mut commands: Commands) {
     let y = 150.0;
     let mut color = 0;
     let rad = 0.5;
 
-    for x in -24..24 {
-        for z in -24..24 {
+    for x in -20..20 {
+        for z in -20..20 {
             color += 1;
 
             // Build the rigid body.

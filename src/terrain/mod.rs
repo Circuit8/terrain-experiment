@@ -62,7 +62,7 @@ impl Default for Config {
             max_view_distance: 1500.,
             material_roughness: 0.98,
             material_reflectance: 0.1,
-            endless: false,
+            endless: true,
             terrain_thresholds: [
                 TerrainThreshold {
                     max_height: 0.35,

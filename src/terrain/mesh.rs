@@ -5,10 +5,7 @@ use bevy::{
         pipeline::PrimitiveTopology,
     },
 };
-use bevy_rapier3d::{
-    na::{DMatrix, Vector3},
-    prelude::{ColliderShape, SharedShape},
-};
+use bevy_rapier3d::{na::Point3, prelude::ColliderShape};
 
 use super::{height_map::HeightMap, SimplificationLevel};
 
@@ -70,7 +67,7 @@ impl Generator {
         while y < self.map_width {
             let mut x = 0;
             while x < self.map_width {
-                let height = self.height_map.data[y][x];
+                let height = self.height_map.data[y][x] * self.height_scale;
 
                 self.vertices[vertex_index] = [x as f32, height as f32, y as f32];
                 self.uvs[vertex_index] = [
@@ -119,11 +116,23 @@ impl Generator {
     }
 
     pub fn collider_shape(&self) -> ColliderShape {
-        let iter = self.vertices.iter().map(|&[_, y, _]| 0.0);
-        let heights = DMatrix::from_iterator(self.map_width, self.map_width, iter);
-        let scale = Vector3::new(self.map_width as f32, 1.0, self.map_width as f32);
+        let vertices = self
+            .vertices
+            .iter()
+            .map(|&[x, y, z]| Point3::new(x, y, z))
+            .collect();
 
-        SharedShape::heightfield(heights, scale)
+        let indices = (0..self.triangles.len() / 3)
+            .map(|i| {
+                let j = i * 3;
+                [
+                    self.triangles[j],
+                    self.triangles[j + 1],
+                    self.triangles[j + 2],
+                ]
+            })
+            .collect();
+        ColliderShape::trimesh(vertices, indices)
     }
 
     // Right now this is not a perfect way of handling the normals.
