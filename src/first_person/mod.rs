@@ -143,11 +143,14 @@ fn player_move(
                 if validate_key(config.map.right, key) {
                     desired_direction += right
                 }
-                if validate_key(config.map.up, key) {
-                    desired_direction += Vec3::Y
-                }
-                if validate_key(config.map.down, key) {
-                    desired_direction -= Vec3::Y
+
+                if !config.gravity {
+                    if validate_key(config.map.up, key) {
+                        desired_direction += Vec3::Y
+                    }
+                    if validate_key(config.map.down, key) {
+                        desired_direction -= Vec3::Y
+                    }
                 }
             }
         }

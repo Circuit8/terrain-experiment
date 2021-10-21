@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 bevy = "0.5"
 bevy-inspector-egui = "*"
-bevy_rapier3d = { version = "*", features=["render"] }
+bevy_rapier3d = { version = "*", features=["render", "simd-stable", "parallel"] }
 noise = "0.7"
 rand = "0.8"
 color-eyre = "0.5.11"
